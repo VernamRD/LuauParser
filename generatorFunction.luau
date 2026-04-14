@@ -74,7 +74,7 @@ local function return_value(decl: ParserTypes.ParsedDecl): string?
     return "return 0; // Unsupported return type"
 end
 
-function GeneratorFunction.generate_function_luau_declaration(decl: ParserTypes.ParsedDecl): string
+function GeneratorFunction.generate_function_luau_definition(decl: ParserTypes.ParsedDecl): string
     local lines: {string} = {}
 
     table.insert(lines, start_definition(decl))
@@ -95,6 +95,28 @@ function GeneratorFunction.generate_function_luau_declaration(decl: ParserTypes.
     table.insert(lines, end_definition())
 
     return table.concat(lines, "\n")
+end
+
+function GeneratorFunction.generate_function_luau_declaration(decl: ParserTypes.ParsedDecl): string
+    local result: string = "declare function " .. decl.name .. "("
+
+    if decl.args then
+        local args: {string} = {}
+
+        for index, arg in ipairs(decl.args) do
+            table.insert(args, arg.name .. ": " .. arg.type)
+        end
+
+        result = result .. table.concat(args, ", ")
+    end
+
+    if decl.ret_type then
+        result = result .. "): " .. decl.ret_type
+    else
+        result = result .. ")"
+    end
+
+    return result
 end
 
 return GeneratorFunction

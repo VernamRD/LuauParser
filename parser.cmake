@@ -18,7 +18,7 @@ function(add_luau_bindings TARGET_NAME)
     foreach (HEADER ${HEADER_FILES_LIST})
         get_filename_component(HEADER_NAME ${HEADER} NAME_WE)
         set(OUT_CPP "${GENERATED_DIR}/bindings_${TARGET_NAME}_${HEADER_NAME}.cpp")
-        set(OUT_TYPES "${CMAKE_SOURCE_DIR}/scripts/api_${TARGET_NAME}_${HEADER_NAME}.d.luau")
+        set(OUT_TYPES "${GENERATED_DIR}/api_${TARGET_NAME}_${HEADER_NAME}.d.luau")
         
         add_custom_command(
                 OUTPUT "${OUT_CPP}" "${OUT_TYPES}"
