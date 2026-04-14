@@ -82,7 +82,6 @@ function ParserScope.parse_file(file_lines: {string}) : {ParserTypes.LuauDecl}
             local result = parse_decl(current, attr_str, line_index, file_lines)
             table.insert(decls, result.decl)
             line_index += result.line_offset
-            print("Line offset" .. result.line_offset)
         end
 
         -- { check before } to handle inline blocks correctly
