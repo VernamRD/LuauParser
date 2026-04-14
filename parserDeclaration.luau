@@ -168,6 +168,17 @@ function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.
 
 	local luau_declarations: {ParserTypes.LuauDecl} = {}
 
+	-- Build full scope path for the declaration, e.g. {"Namespace", "Class"}
+	local decl_full_scope: {string} = {scope.name}
+	if scope.parent then
+		-- Check what scope is not simple root
+		local parent = scope.parent
+		while parent and not (parent.name == "") do
+			table.insert(decl_full_scope, 1, parent.name)
+			parent = parent.parent
+		end
+	end
+
 	-- Find all @luau declarations in the scope
 	local i = 1
 	while i <= #scope_lines do
@@ -192,7 +203,7 @@ function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.
 				attributes_str = attr_str,
 				declaration_line = j,
 				declaration_str = decl_line,
-				scope = nil, -- Scope parsing can be added later
+				scope = decl_full_scope,
 			}
 			table.insert(luau_declarations, decl)
 
@@ -206,6 +217,7 @@ function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.
 	for _, luau_decl: ParserTypes.LuauDecl in luau_declarations do
 		local parsed_decl: ParserTypes.ParsedDecl = parse_declaration(luau_decl.declaration_str)
 		parsed_decl.attributes = parse_attributes(luau_decl.attributes_str)
+		parsed_decl.scope = luau_decl.scope
 		table.insert(parsed_decls, parsed_decl)
 	end
 
@@ -215,8 +227,11 @@ end
 function ParserDeclaration.print_parsed_decl(parsed_decl: ParserTypes.ParsedDecl)
 	print("kind:     " .. parsed_decl.kind)
 	print("name:     " .. parsed_decl.name)
-	print("attributes: ")
+	if parsed_decl.scope then
+		print("scope: 	 " .. table.concat(parsed_decl.scope, "::"))
+	end
 
+	print("attributes: ")
 	if parsed_decl.attributes then
 		for _, attr in pairs(parsed_decl.attributes) do
 			print("  " .. attr.type .. ": " .. tostring(attr.value))

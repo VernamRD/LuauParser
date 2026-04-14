@@ -78,6 +78,7 @@ export type ScopeNode = {
     kind: ScopeKind,
     name: string,
     children: {ScopeNode},
+    parent: ScopeNode?,
     line_start: number?, 
     line_end: number?,
     contains_luau: boolean?, -- whether this scope contains any @luau declarations (for optimization)

@@ -14,6 +14,7 @@ function ParserScope.parse_blocks(file_lines: {string}) : ParserTypes.ScopeNode
     while line_index <= #file_lines do
         local line = file_lines[line_index]
         local trimmed = line:match("^%s*(.-)%s*$")
+        local current = stack[#stack]
 
         -- Skip empty lines but remember context
         if trimmed == "" then
@@ -24,7 +25,6 @@ function ParserScope.parse_blocks(file_lines: {string}) : ParserTypes.ScopeNode
         -- Try catch @luau decl
         local attr_str = trimmed:match("@luau%s*(.*)")
         if attr_str then
-            local current = stack[#stack]
             current.contains_luau = true
             line_index += 1
             continue
@@ -68,6 +68,7 @@ function ParserScope.parse_blocks(file_lines: {string}) : ParserTypes.ScopeNode
                 kind       = kind,
                 name       = name or header,
                 children   = {},
+                parent     = current,
                 line_start = line_index,
             }
 
@@ -76,7 +77,6 @@ function ParserScope.parse_blocks(file_lines: {string}) : ParserTypes.ScopeNode
 
         elseif trimmed:find("^}") then
             if #stack > 1 then
-                local current = stack[#stack]
                 current.line_end = line_index + 1
                 table.remove(stack)
             end
