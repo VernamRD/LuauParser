@@ -2,7 +2,61 @@ local ParserScope = {}
 
 local ParserTypes = require("parserTypes")
 
-function ParserScope.parse_blocks(file_lines: {string}) : ParserTypes.ScopeNode
+-- Build full scope path for the declaration, e.g. {"Namespace", "Class"}
+function build_full_scope(node: ParserTypes.ScopeNode): {string}
+	local decl_full_scope: {string} = {}
+
+	if node.parent then
+		-- Check what scope is not simple root
+		local parent = node.parent
+		while parent and not (parent.name == "") do
+			table.insert(decl_full_scope, 1, parent.name)
+			parent = parent.parent
+		end
+	end
+
+    return decl_full_scope
+end
+
+function parse_decl(node: ParserTypes.ScopeNode, attr_str: string, line_index: number, lines: {string}): {decl: ParserTypes.LuauDecl, line_offset: number}
+    -- Remove trailing whitespace and optional * or / characters
+	attr_str_trimmed = attr_str:match("^(.-)%s*%*?/?%s*$")
+
+	-- Find declaration line after attributes
+	local j = line_index + 1
+	while j <= #lines and lines[j]:match("^%s*$") do
+		j = j + 1
+	end
+	local decl_line = lines[j] or ""
+	decl_line = decl_line:match("^%s*(.-)%s*$") -- Match function or variable declaration
+	local decl: ParserTypes.LuauDecl = {
+		attributes_line = line_index,
+		attributes_str = attr_str_trimmed,
+		declaration_line = j,
+		declaration_str = decl_line,
+		scope = build_full_scope(node),
+	}
+	
+	return {
+        decl = decl,
+        line_offset = j - line_index
+    }
+end
+
+local function print_tree(node: ParserTypes.ScopeNode, indent: number)
+    indent = indent or 0
+    local prefix = string.rep("  ", indent)
+    print(prefix .. "[" .. node.kind .. "] " .. (node.name or "?") .. " " .. (node.line_start or "?") .. "-" .. (node.line_end or "?"))
+
+    for _, child in ipairs(node.children) do
+        print_tree(child, indent + 1)
+    end
+end
+
+
+function ParserScope.parse_file(file_lines: {string}) : {ParserTypes.LuauDecl}
+    local decls: {ParserTypes.LuauDecl} = {}
+
     local root: ParserTypes.ScopeNode = { kind = ParserTypes.ScopeKind.Root, name = "", children = {}, body = "", line_start = 0}
     local stack = { root }
 
@@ -25,9 +79,10 @@ function ParserScope.parse_blocks(file_lines: {string}) : ParserTypes.ScopeNode
         -- Try catch @luau decl
         local attr_str = trimmed:match("@luau%s*(.*)")
         if attr_str then
-            current.contains_luau = true
-            line_index += 1
-            continue
+            local result = parse_decl(current, attr_str, line_index, file_lines)
+            table.insert(decls, result.decl)
+            line_index += result.line_offset
+            print("Line offset" .. result.line_offset)
         end
 
         -- { check before } to handle inline blocks correctly
@@ -86,36 +141,11 @@ function ParserScope.parse_blocks(file_lines: {string}) : ParserTypes.ScopeNode
         line_index += 1
     end
 
-    return root
-end
-
--- Collect all scopes that contain @luau declarations into a flat array for easier processing
-function ParserScope.build_scope_arr_with_decl(root: ParserTypes.ScopeNode): {ParserTypes.ScopeNode}
-    local result: {ParserTypes.ScopeNode} = {}
-    local stack = { root }
-
-    while #stack > 0 do
-        local current = table.remove(stack)
-        if current.contains_luau then
-            table.insert(result, current)
-        end
-
-        for _, child in ipairs(current.children) do
-            table.insert(stack, child)
-        end
+    if ParserTypes.verbose_print then
+        print_tree(root, 1)
     end
 
-    return result
-end
-
-function ParserScope.print_tree(node: ParserTypes.ScopeNode, indent: number)
-    indent = indent or 0
-    local prefix = string.rep("  ", indent)
-    print(prefix .. "[" .. node.kind .. "] " .. (node.name or "?") .. " " .. (node.line_start or "?") .. "-" .. (node.line_end or "?") .. (node.contains_luau == true and " (contains @luau)" or ""))
-
-    for _, child in ipairs(node.children) do
-        ParserScope.print_tree(child, indent + 1)
-    end
+    return decls
 end
 
 return ParserScope

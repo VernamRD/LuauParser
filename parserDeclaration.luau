@@ -2,7 +2,7 @@ local ParserDeclaration = {}
 
 local ParserTypes = require("parserTypes")
 
-local function parse_attributes(attr_str: string): { parserTypes.LuauAttr }	
+local function parse_attributes(attr_str: string): { ParserTypes.LuauAttr }	
 	local attributes: { [string]: string | boolean } = {}
 
 	-- Search pattern: key, then either ="value" or nothing
@@ -106,7 +106,7 @@ local function parse_arguments(args_str: string): {ParserTypes.ParsedArg}
 	return result
 end
 
-function parse_declaration(decl: string): ParserTypes.ParsedDecl
+local function parse_declaration(decl: string): ParserTypes.ParsedDecl
 	decl = decl:gsub(";%s*$", "") -- Remove trailing semicolon
 
 	local is_static = false
@@ -157,66 +157,9 @@ function parse_declaration(decl: string): ParserTypes.ParsedDecl
 	return { kind = ParserTypes.DeclKind.Unknown, name = decl, is_const = is_const, is_static = is_static }
 end
 
-function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.ScopeNode): {ParserTypes.ParsedDecl}
-	local scope_lines: {string} = {}
-	if not scope.line_start or not scope.line_end then
-		print("Scope " .. scope.name .. " does not have valid line range")
-		return {}
-	end
-
-	for i = scope.line_start, scope.line_end do
-		table.insert(scope_lines, file_lines[i])
-	end
-
-	local luau_declarations: {ParserTypes.LuauDecl} = {}
-
-	-- Build full scope path for the declaration, e.g. {"Namespace", "Class"}
-	local decl_full_scope: {string} = {scope.name}
-	if scope.parent then
-		-- Check what scope is not simple root
-		local parent = scope.parent
-		while parent and not (parent.name == "") do
-			table.insert(decl_full_scope, 1, parent.name)
-			parent = parent.parent
-		end
-	end
-
-	-- Find all @luau declarations in the scope
-	local i = 1
-	while i <= #scope_lines do
-		local line = scope_lines[i]
-
-		local attr_str = line:match("@luau%s*(.*)")
-		if attr_str then
-		-- Remove trailing whitespace and optional * or / characters
-			attr_str = attr_str:match("^(.-)%s*%*?/?%s*$")
-
-			-- Find declaration line after attributes
-			local j = i + 1
-			while j <= #scope_lines and scope_lines[j]:match("^%s*$") do
-				j = j + 1
-			end
-
-			local decl_line = scope_lines[j] or ""
-			decl_line = decl_line:match("^%s*(.-)%s*$") -- Match function or variable declaration
-
-			local decl: ParserTypes.LuauDecl = {
-				attributes_line = i,
-				attributes_str = attr_str,
-				declaration_line = j,
-				declaration_str = decl_line,
-				scope = decl_full_scope,
-			}
-			table.insert(luau_declarations, decl)
-
-			-- Skip to the line after the declaration for the next iteration
-			i = j
-		end
-		i = i + 1
-	end
-
+function ParserDeclaration.parse_luau_decl(file_lines: {string}, decls: {ParserTypes.LuauDecl}): {ParserTypes.ParsedDecl}
 	local parsed_decls: {ParserTypes.ParsedDecl} = {}
-	for _, luau_decl: ParserTypes.LuauDecl in luau_declarations do
+	for _, luau_decl in pairs(decls) do
 		local parsed_decl: ParserTypes.ParsedDecl = parse_declaration(luau_decl.declaration_str)
 		parsed_decl.attributes = parse_attributes(luau_decl.attributes_str)
 		parsed_decl.scope = luau_decl.scope
@@ -227,27 +170,27 @@ function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.
 end
 
 function ParserDeclaration.print_parsed_decl(parsed_decl: ParserTypes.ParsedDecl)
-	print("kind:     " .. parsed_decl.kind)
-	print("name:     " .. parsed_decl.name)
+	print("kind: " .. parsed_decl.kind)
+	print("\tname: " .. parsed_decl.name)
 	if parsed_decl.scope then
-		print("scope: 	 " .. table.concat(parsed_decl.scope, "::"))
+		print("\tscope: " .. table.concat(parsed_decl.scope, "::"))
 	end
 
-	print("attributes: ")
+	print("\tattributes: ")
 	if parsed_decl.attributes then
 		for _, attr in pairs(parsed_decl.attributes) do
-			print("  " .. attr.type .. ": " .. tostring(attr.value))
+			print("\t\t" .. attr.type .. ": " .. tostring(attr.value))
 		end
 	end
 
 	if parsed_decl.ret_type then
-		print("ret_type: " .. parsed_decl.ret_type)
+		print("\tret_type: " .. parsed_decl.ret_type)
 	end
-	print("is_const: " .. tostring(parsed_decl.is_const))
+	print("\tis_const: " .. tostring(parsed_decl.is_const))
 
 	if parsed_decl.args then
 		for i, arg in parsed_decl.args do
-			print(string.format("  arg[%d]: %s %s%s", i, arg.type, arg.name,
+			print(string.format("\t\targ[%d]: %s %s%s", i, arg.type, arg.name,
 			arg.default and (" = " .. arg.default) or ""))
 		end
 	end

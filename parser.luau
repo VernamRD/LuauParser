@@ -17,28 +17,21 @@ for line in file_content:gmatch("[^\n]+") do
 	table.insert(file_lines, line)
 end
 
-local root = ParserScope.parse_blocks(file_lines)
+local luau_decls = ParserScope.parse_file(file_lines)
 if ParserTypes.verbose_print then
-    ParserScope.print_tree(root, 1)
-end
-
-local scopes_with_decl = ParserScope.build_scope_arr_with_decl(root)
-if ParserTypes.verbose_print then
-    print(#scopes_with_decl .. " scopes with @luau declarations found")
+    print(#luau_decls .. " declarations found")
     print("Parsing declarations...")
 end
 
-local decls: {ParserTypes.ParsedDecl} = {}
-for _, scope in scopes_with_decl do
-    local parsed_decls = ParserDeclaration.parse_scope(file_lines, scope)
-    for _, decl in parsed_decls do
-        table.insert(decls, decl)
-        
-        if ParserTypes.verbose_print then
-            ParserDeclaration.print_parsed_decl(decl)
-        end
+local parsed_decls: {ParserTypes.ParsedDecl} = {}
+local decls = ParserDeclaration.parse_luau_decl(file_lines, luau_decls)
+for _, parsed_decl in decls do
+    table.insert(parsed_decls, parsed_decl)
+    
+    if ParserTypes.verbose_print then
+        ParserDeclaration.print_parsed_decl(parsed_decl)
     end
 end
 
 local Generator = require("generator")
-Generator.generate(out_cpp, out_types, decls)
+Generator.generate(out_cpp, out_types, parsed_decls)

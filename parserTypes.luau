@@ -1,6 +1,6 @@
 local ParserTypes = {}
 
-ParserTypes.verbose_print = false
+ParserTypes.verbose_print = true
 
 export type LuauDecl = {
     attributes_line: number, -- line number of the @luau attributes
@@ -20,7 +20,7 @@ ParserTypes.ParsedArgType = table.freeze({
 
 ParserTypes.ArgTypeMapping = table.freeze({
     ["nil"] = "nil",
-    ["boolean"] = "boolean",
+    ["bool"] = "boolean",
     ["int"] = "number",
     ["float"] = "number",
     ["double"] = "number",
@@ -92,7 +92,6 @@ export type ScopeNode = {
     parent: ScopeNode?,
     line_start: number?, 
     line_end: number?,
-    contains_luau: boolean?, -- whether this scope contains any @luau declarations (for optimization)
 }
 
 

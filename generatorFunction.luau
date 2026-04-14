@@ -8,9 +8,11 @@ local function get_argument(arg: ParserTypes.ParsedArg, index: number): string
     if arg.type == ParserTypes.ParsedArgType.Nil then
         arg_str = arg_str .. "nil"
     elseif arg.type == ParserTypes.ParsedArgType.Boolean then
-        arg_str = arg_str .. "false"
+        arg_str = arg_str .. "luaL_checkboolean"
     elseif arg.type == ParserTypes.ParsedArgType.Number then
         arg_str = arg_str .. "luaL_checkinteger"
+    elseif arg.type == ParserTypes.ParsedArgType.String then
+        arg_str = arg_str .. "luaL_checkstring"
     end
 
     arg_str = arg_str .. "(L, " .. tostring(index) .. ");"
@@ -20,7 +22,7 @@ end
 
 local function start_definition(decl: ParserTypes.ParsedDecl): string
     if decl.ret_original_type then
-        return decl.ret_original_type .. " luau_" .. decl.name .. "(lua_State* L) \n{"
+        return "int luau_" .. decl.name .. "(lua_State* L) \n{"
     end
 
     return "Invalid declaration: missing return type for function " .. decl.name

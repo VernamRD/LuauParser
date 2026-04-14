@@ -9,8 +9,8 @@ function Generator.generate(cpp_filename: string, out_types: string, decls: {Par
 
     for _, decl in ipairs(decls) do
         if decl.kind == ParserTypes.DeclKind.Function then
-            file_definition_content = file_definition_content .. GeneratorFunction.generate_function_luau_definition(decl)
-            file_declaration_content = file_declaration_content .. GeneratorFunction.generate_function_luau_declaration(decl)
+            file_definition_content = file_definition_content .. GeneratorFunction.generate_function_luau_definition(decl) .. "\n"
+            file_declaration_content = file_declaration_content .. GeneratorFunction.generate_function_luau_declaration(decl) .. "\n"
         elseif decl.kind == ParserTypes.DeclKind.Field then
             print("Generating field: " .. decl.name)
             -- Here you would generate the C++ code for the field declaration
