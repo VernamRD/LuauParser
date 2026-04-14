@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <string>
 
@@ -25,6 +26,7 @@ static std::string read_file(const char* path)
 static int io_readfile(lua_State* L)
 {
     const char* path = luaL_checkstring(L, 1);
+    std::cout << path;
     std::ifstream f(path, std::ios::binary);
     if (!f)
     {

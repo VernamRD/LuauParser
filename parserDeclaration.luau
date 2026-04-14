@@ -97,6 +97,7 @@ local function parse_arguments(args_str: string): {ParserTypes.ParsedArg}
 			table.insert(result, {
 				name    = arg_name,
 				type    = parse_type(arg_type),
+				original_type = arg_type,
 				default = default,
 			})
 		end
@@ -130,9 +131,10 @@ function parse_declaration(decl: string): ParserTypes.ParsedDecl
 		local ret_type, fn_name = ret_and_name:match("^(.-)%s+([%w_:~]+)%s*$")
 		if fn_name then
 			return {
-				kind     = "function",
+				kind     = ParserTypes.DeclKind.Function,
 				name     = fn_name,
 				ret_type = parse_type(ret_type),
+				ret_original_type = ret_type,
 				args     = parse_arguments(args_str),
 				is_const = is_const,
 				is_static = is_static,
@@ -144,7 +146,7 @@ function parse_declaration(decl: string): ParserTypes.ParsedDecl
 	local field_type, field_name = field_decl:match("^(.-)%s+([%w_]+)%s*$")
 	if field_name then
 		return {
-			kind       = "field",
+			kind       = ParserTypes.DeclKind.Field,
 			name       = field_name,
 			field_type = parse_type(field_type),
 			is_const   = is_const,
@@ -152,7 +154,7 @@ function parse_declaration(decl: string): ParserTypes.ParsedDecl
 		}
 	end
 
-	return { kind = "unknown", name = decl, is_const = is_const, is_static = is_static }
+	return { kind = ParserTypes.DeclKind.Unknown, name = decl, is_const = is_const, is_static = is_static }
 end
 
 function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.ScopeNode): {ParserTypes.ParsedDecl}

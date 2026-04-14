@@ -1,5 +1,7 @@
 local ParserTypes = {}
 
+ParserTypes.verbose_print = false
+
 export type LuauDecl = {
     attributes_line: number, -- line number of the @luau attributes
     attributes_str: string, -- line with @luau attributes
@@ -38,6 +40,7 @@ export type ParsedArg = {
     name: string,
     type: ParsedArgType,
     default: string?,
+    original_type: string, -- the original C++ type as a string, e.g. "int"
 }
 
 export type LuauAttrType = "export" | "rename" | "undefined"
@@ -51,12 +54,20 @@ export type LuauAttr = {
     value: string | boolean, -- e.g. for "export" it will be true, for "rename" it will be the new name
 }
 
+export type DeclKind = "function" | "field" | "unknown"
+ParserTypes.DeclKind = table.freeze({
+    Function = "function" :: DeclKind,
+    Field = "field" :: DeclKind,
+    Unknown = "unknown" :: DeclKind,
+})
+
 export type ParsedDecl = {
-    kind: string,       -- "function" | "field" | "unknown"
+    kind: DeclKind,
     name: string,
     attributes: {LuauAttr}?, -- parsed attributes from the @luau line
-    ret_type: string?,  -- only for function
-    field_type: string?, -- only for field
+    ret_type: ParsedArgType?,  -- only for function
+    ret_original_type: string?, -- only for function, the original C++ return type as a string
+    field_type: ParsedArgType?, -- only for field
     args: {ParsedArg}?,
     is_const: boolean,
     is_static: boolean,

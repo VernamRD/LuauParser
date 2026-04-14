@@ -10,7 +10,6 @@ if(NOT EXISTS "${GENERATED_DIR}")
     file(MAKE_DIRECTORY "${GENERATED_DIR}")
 endif()
 
-set(GENERATED_CPP ${GENERATED_DIR}/generated.cpp)
 set(LUAU_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/LuauParser/parser.luau")
 
 function(add_luau_bindings TARGET_NAME)
