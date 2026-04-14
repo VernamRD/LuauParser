@@ -1,6 +1,5 @@
 local ParserDeclaration = {}
 
-local parserTypes = require("./parserTypes")
 local ParserTypes = require("parserTypes")
 
 local function parse_attributes(attr_str: string): { parserTypes.LuauAttr }	
@@ -21,7 +20,7 @@ local function parse_attributes(attr_str: string): { parserTypes.LuauAttr }
 		attributes[flag] = true
 	end
 
-	local parsed_attributes: { parserTypes.LuauAttr } = {}
+	local parsed_attributes: { ParserTypes.LuauAttr } = {}
 	for key, flag in attributes do
 		local type: ParserTypes.LuauAttrType = ParserTypes.LuauAttrType.Undefined
 
@@ -42,12 +41,16 @@ local function parse_attributes(attr_str: string): { parserTypes.LuauAttr }
 	return parsed_attributes
 end
 
-local function parse_type(str: string): string
-	-- Remove leading/trailing whitespace
-	return str:match("^%s*(.-)%s*$") or "???"
+local function parse_type(str: string): ParserTypes.ParsedArgType
+	local trimmed = str:match("^%s*(.-)%s*$") or "???"
+	if trimmed then
+        return (ParserTypes.ArgTypeMapping[trimmed] or ParserTypes.ParsedArgType.Nil)
+    end
+
+	return ParserTypes.ParsedArgType.Nil
 end
 
-local function parse_arguments(args_str: string): {{name: string, type: string, default: string?}}
+local function parse_arguments(args_str: string): {ParserTypes.ParsedArg}
 	local args = {}
 	if args_str:match("^%s*$") then
 		return args
@@ -210,7 +213,6 @@ function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.
 end
 
 function ParserDeclaration.print_parsed_decl(parsed_decl: ParserTypes.ParsedDecl)
-	print("DECL: 	 " .. parsed_decl.name)
 	print("kind:     " .. parsed_decl.kind)
 	print("name:     " .. parsed_decl.name)
 	print("attributes: ")

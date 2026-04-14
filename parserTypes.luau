@@ -8,9 +8,35 @@ export type LuauDecl = {
     scope: {string}? -- e.g. {"namespace", "class"}
 }
 
+export type ParsedArgType = "Nil" | "Boolean" | "Number" | "String"
+ParserTypes.ParsedArgType = table.freeze({
+    Nil = "Nil" :: ParsedArgType,
+    Boolean = "Boolean" :: ParsedArgType,
+    Number = "Number" :: ParsedArgType,
+    String = "String" :: ParsedArgType,
+})
+
+ParserTypes.ArgTypeMapping = table.freeze({
+    ["nil"] = "Nil",
+    ["boolean"] = "Boolean",
+    ["int"] = "Number",
+    ["float"] = "Number",
+    ["double"] = "Number",
+    ["std::size_t"] = "Number",
+    ["std::int8_t"] = "Number",
+    ["std::int16_t"] = "Number",
+    ["std::int32_t"] = "Number",
+    ["std::int64_t"] = "Number",
+    ["std::uint8_t"] = "Number",
+    ["std::uint16_t"] = "Number",
+    ["std::uint32_t"] = "Number",
+    ["std::uint64_t"] = "Number",
+    ["std::string"] = "String",
+})
+
 export type ParsedArg = {
     name: string,
-    type: string,
+    type: ParsedArgType,
     default: string?,
 }
 
@@ -36,13 +62,6 @@ export type ParsedDecl = {
     is_static: boolean,
     scope: {string}? -- e.g. {"namespace", "class"}
 }
-
-ParserTypes.ParsedType = table.freeze({
-    Nil = {},
-    Boolean = {"boolean"},
-    Number = {"int", "float", "double", "std::size_t", "std::int8_t", "std::int16_t", "std::int32_t", "std::int64_t", "std::uint8_t", "std::uint16_t", "std::uint32_t", "std::uint64_t"},
-    String = {"std::string"},
-})
 
 export type ScopeKind = "root" | "block" | "namespace" | "class" | "enum" | "inline" |"unknown"
 ParserTypes.ScopeKind = table.freeze({
