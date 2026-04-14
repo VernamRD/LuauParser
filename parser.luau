@@ -3,11 +3,13 @@ local out_cpp   = arg[2]
 local out_types = arg[3]
 local header    = arg[4]
 
-print ("Generate " .. header)
-
 local ParserTypes = require("parserTypes")
 local ParserDeclaration = require("parserDeclaration")
 local ParserScope = require("parserScope")
+
+if ParserTypes.verbose_print then
+    print ("Generate " .. header)
+end
 
 local file_content = io.readfile(header)
 local file_lines: {string} = {}
