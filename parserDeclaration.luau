@@ -3,8 +3,8 @@ local ParserDeclaration = {}
 local parserTypes = require("./parserTypes")
 local ParserTypes = require("parserTypes")
 
-local function parse_attributes(attr_str: string)
-	local attributes = {}
+local function parse_attributes(attr_str: string): { parserTypes.LuauAttr }	
+	local attributes: { [string]: string | boolean } = {}
 
 	-- Search pattern: key, then either ="value" or nothing
 	-- %w+ - key
@@ -21,59 +21,30 @@ local function parse_attributes(attr_str: string)
 		attributes[flag] = true
 	end
 
-	return attributes
-end
+	local parsed_attributes: { parserTypes.LuauAttr } = {}
+	for key, flag in attributes do
+		local type: ParserTypes.LuauAttrType = ParserTypes.LuauAttrType.Undefined
 
-
-function ParserDeclaration.parse_header(content: string)
-	local result: {ParserTypes.LuauDecl} = {}
-
-	local lines: {string} = {}
-	for line in content:gmatch("[^\n]+") do
-		table.insert(lines, line)
-	end
-
-	local i = 1
-	while i <= #lines do
-		local line = lines[i]
-
-		local attr_str = line:match("@luau%s*(.*)")
-		if attr_str then
-		-- Remove trailing whitespace and optional * or / characters
-			attr_str = attr_str:match("^(.-)%s*%*?/?%s*$")
-
-			local attributes = parse_attributes(attr_str)
-
-			-- Find declaration line after attributes
-			local j = i + 1
-			while j <= #lines and lines[j]:match("^%s*$") do
-				j = j + 1
+		for known_type, known_type_str: string in ParserTypes.LuauAttrType do
+			if key == known_type_str then
+				type = known_type
+				break
 			end
-
-			local decl_line = lines[j] or ""
-			decl_line = decl_line:match("^%s*(.-)%s*$") -- Match function or variable declaration
-
-			local decl: parserTypes.LuauDecl = {
-				attributes_line = i,
-				attributes_str = attr_str,
-				declaration_line = j,
-				declaration_strs = {decl_line},
-				scope = nil, -- Scope parsing can be added later
-			}
-			table.insert(result, decl)
-
-			-- Skip to the line after the declaration for the next iteration
-			i = j
 		end
-		i = i + 1
+
+		table.insert(parsed_attributes, {
+			type = type,
+			value = flag
+		})
 	end
 
-	return result
+
+	return parsed_attributes
 end
 
 local function parse_type(str: string): string
--- Remove leading/trailing whitespace
-	return str:match("^%s*(.-)%s*$")
+	-- Remove leading/trailing whitespace
+	return str:match("^%s*(.-)%s*$") or "???"
 end
 
 local function parse_arguments(args_str: string): {{name: string, type: string, default: string?}}
@@ -131,7 +102,7 @@ local function parse_arguments(args_str: string): {{name: string, type: string, 
 	return result
 end
 
-function parse_declaration(decl: string): PareserTypes.ParsedDecl
+function parse_declaration(decl: string): ParserTypes.ParsedDecl
 	decl = decl:gsub(";%s*$", "") -- Remove trailing semicolon
 
 	local is_static = false
@@ -181,23 +152,84 @@ function parse_declaration(decl: string): PareserTypes.ParsedDecl
 	return { kind = "unknown", name = decl, is_const = is_const, is_static = is_static }
 end
 
-function ParserDeclaration.print_parsed_decl(parsed_decl: PareserTypes.ParsedDecl)
-	for _, entry in ipairs(parsed_decl) do
-		print("DECL: " .. entry.declaration)
-		local parsed_decl = parse_declaration(entry.declaration)
-		print("kind:     " .. parsed_decl.kind)
-		print("name:     " .. parsed_decl.name)
-		print("ret_type: " .. parsed_decl.ret_type)
-		print("is_const: " .. tostring(parsed_decl.is_const))
-		for i, arg in ipairs(parsed_decl.args) do
-			print(string.format("  arg[%d]: %s %s%s", i, arg.type, arg.name,
-				arg.default and (" = " .. arg.default) or ""))
+function ParserDeclaration.parse_scope(file_lines: {string}, scope: ParserTypes.ScopeNode): {ParserTypes.ParsedDecl}
+	local scope_lines: {string} = {}
+	if not scope.line_start or not scope.line_end then
+		print("Scope " .. scope.name .. " does not have valid line range")
+		return {}
+	end
+
+	for i = scope.line_start, scope.line_end do
+		table.insert(scope_lines, file_lines[i])
+	end
+
+	local luau_declarations: {ParserTypes.LuauDecl} = {}
+
+	-- Find all @luau declarations in the scope
+	local i = 1
+	while i <= #scope_lines do
+		local line = scope_lines[i]
+
+		local attr_str = line:match("@luau%s*(.*)")
+		if attr_str then
+		-- Remove trailing whitespace and optional * or / characters
+			attr_str = attr_str:match("^(.-)%s*%*?/?%s*$")
+
+			-- Find declaration line after attributes
+			local j = i + 1
+			while j <= #scope_lines and scope_lines[j]:match("^%s*$") do
+				j = j + 1
+			end
+
+			local decl_line = scope_lines[j] or ""
+			decl_line = decl_line:match("^%s*(.-)%s*$") -- Match function or variable declaration
+
+			local decl: ParserTypes.LuauDecl = {
+				attributes_line = i,
+				attributes_str = attr_str,
+				declaration_line = j,
+				declaration_str = decl_line,
+				scope = nil, -- Scope parsing can be added later
+			}
+			table.insert(luau_declarations, decl)
+
+			-- Skip to the line after the declaration for the next iteration
+			i = j
 		end
+		i = i + 1
+	end
 
+	local parsed_decls: {ParserTypes.ParsedDecl} = {}
+	for _, luau_decl: ParserTypes.LuauDecl in luau_declarations do
+		local parsed_decl: ParserTypes.ParsedDecl = parse_declaration(luau_decl.declaration_str)
+		parsed_decl.attributes = parse_attributes(luau_decl.attributes_str)
+		table.insert(parsed_decls, parsed_decl)
+	end
 
-		print("ATTRS:")
-		for k, v in pairs(entry.attributes) do
-			print("  " .. k .. " = " .. tostring(v))
+	return parsed_decls
+end
+
+function ParserDeclaration.print_parsed_decl(parsed_decl: ParserTypes.ParsedDecl)
+	print("DECL: 	 " .. parsed_decl.name)
+	print("kind:     " .. parsed_decl.kind)
+	print("name:     " .. parsed_decl.name)
+	print("attributes: ")
+
+	if parsed_decl.attributes then
+		for _, attr in pairs(parsed_decl.attributes) do
+			print("  " .. attr.type .. ": " .. tostring(attr.value))
+		end
+	end
+
+	if parsed_decl.ret_type then
+		print("ret_type: " .. parsed_decl.ret_type)
+	end
+	print("is_const: " .. tostring(parsed_decl.is_const))
+
+	if parsed_decl.args then
+		for i, arg in parsed_decl.args do
+			print(string.format("  arg[%d]: %s %s%s", i, arg.type, arg.name,
+			arg.default and (" = " .. arg.default) or ""))
 		end
 	end
 end
