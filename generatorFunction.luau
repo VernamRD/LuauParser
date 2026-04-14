@@ -76,7 +76,7 @@ local function return_value(decl: ParserTypes.ParsedDecl): string?
     return "return 0; // Unsupported return type"
 end
 
-function GeneratorFunction.generate_function_luau_definition(decl: ParserTypes.ParsedDecl): string
+function GeneratorFunction.generate_function_luau_wrapper(decl: ParserTypes.ParsedDecl): string
     local lines: {string} = {}
 
     table.insert(lines, start_definition(decl))
@@ -99,7 +99,16 @@ function GeneratorFunction.generate_function_luau_definition(decl: ParserTypes.P
     return table.concat(lines, "\n")
 end
 
-function GeneratorFunction.generate_function_luau_declaration(decl: ParserTypes.ParsedDecl): string
+function GeneratorFunction.generate_function_luau_reg(decl: ParserTypes.ParsedDecl): string
+    local result: string = ""
+
+    result = result .. "lua_pushcfunction(L, luau_" .. decl.name .. ", \"" .. decl.name .. "\");\n"
+    result = result .. "lua_setglobal(L, \"" .. decl.name .. "\");\n"
+
+    return result
+end
+
+function GeneratorFunction.generate_function_luau_api(decl: ParserTypes.ParsedDecl): string
     local result: string = "declare function " .. decl.name .. "("
 
     if decl.args then

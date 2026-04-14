@@ -1,7 +1,8 @@
 assert(arg[1] == "-a", "Expected -a flag")
-local out_cpp   = arg[2]
-local out_types = arg[3]
-local header    = arg[4]
+local out_wrapper   = arg[2]
+local out_reg = arg[3]
+local out_api = arg[4]
+local header    = arg[5]
 
 local ParserTypes = require("parserTypes")
 local ParserDeclaration = require("parserDeclaration")
@@ -34,4 +35,4 @@ for _, parsed_decl in decls do
 end
 
 local Generator = require("generator")
-Generator.generate(out_cpp, out_types, parsed_decls)
+Generator.generate(out_wrapper, out_reg, out_api, parsed_decls)

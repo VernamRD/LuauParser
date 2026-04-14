@@ -6,11 +6,15 @@ set(GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 if(NOT EXISTS "${GENERATED_DIR}")
     file(MAKE_DIRECTORY "${GENERATED_DIR}")
 endif()
-set(GENERATED_DEF "${CMAKE_BINARY_DIR}/generated/generated.h")
-set(GENERATED_DECL "${CMAKE_BINARY_DIR}/generated/api.d.luau")
 
-set(MANIFEST_GENERATED_DEF "${GENERATED_DIR}/generated_definition.txt")
-set(MANIFEST_GENERATED_DECL "${GENERATED_DIR}/generated_declaration.txt")
+# Function registration
+set(GENERATED_REG "${GENERATED_DIR}/generated.h")
+# Luau function declaration
+set(GENERATED_API "${GENERATED_DIR}/api.d.luau")
+
+set(MANIFEST_GENERATED_WRAPPERS "${GENERATED_DIR}/generated_wrappers.manifest")
+set(MANIFEST_GENERATED_REG "${GENERATED_DIR}/generated_reg.manifest")
+set(MANIFEST_GENERATED_API "${GENERATED_DIR}/generated_api.manifest")
 
 function(register_luau_parser)
     add_executable (luau_parser "${PARSER_ROOT_DIR}/LuauParser.cpp")
@@ -28,42 +32,48 @@ function(add_luau_bindings TARGET_NAME)
     
     set(ALL_GEN_CPP "")
     set(ALL_GEN_TYPES "")
-
+    
+    # Parse each header
     foreach (HEADER ${HEADER_FILES_LIST})
         get_filename_component(HEADER_NAME ${HEADER} NAME_WE)
-        set(OUT_CPP "${GENERATED_DIR}/bindings_${TARGET_NAME}_${HEADER_NAME}.cpp")
-        set(OUT_TYPES "${GENERATED_DIR}/api_${TARGET_NAME}_${HEADER_NAME}.d.luau")
+        set(OUT_WRAPPERS "${GENERATED_DIR}/wrapper_${TARGET_NAME}_${HEADER_NAME}.h")
+        set(OUT_REG "${GENERATED_DIR}/reg_${TARGET_NAME}_${HEADER_NAME}.h")
+        set(OUT_APIS "${GENERATED_DIR}/api_${TARGET_NAME}_${HEADER_NAME}.d.luau")
         
-        list(APPEND ALL_GEN_CPP "${OUT_CPP}")
-        list(APPEND ALL_GEN_TYPES "${OUT_TYPES}")
+        list(APPEND ALL_GEN_WRAPPERS "${OUT_WRAPPERS}")
+        list(APPEND ALL_GEN_REG "${OUT_REG}")
+        list(APPEND ALL_GEN_API "${OUT_APIS}")
         
         add_custom_command(
-                OUTPUT "${OUT_CPP}" "${OUT_TYPES}"
-                COMMAND ${LUAU_PARSER_EXE} "${LUAU_PARSER}" -a "${OUT_CPP}" "${OUT_TYPES}" ${HEADER}
+                OUTPUT "${OUT_WRAPPERS}" "${OUT_REG}" "${OUT_APIS}"
+                COMMAND ${LUAU_PARSER_EXE} "${LUAU_PARSER}" -a "${OUT_WRAPPERS}" "${OUT_REG}" "${OUT_APIS}" ${HEADER}
                 DEPENDS ${LUAU_PARSER_EXE} "${LUAU_PARSER}" ${HEADER}
                 COMMENT "Generating Luau bindings for ${HEADER}..."
                 VERBATIM
         )
         
         set(GEN_TARGET "generate_${TARGET_NAME}_${HEADER_NAME}_bindings")
-        add_custom_target(${GEN_TARGET} DEPENDS "${OUT_CPP}" "${OUT_TYPES}")
+        add_custom_target(${GEN_TARGET} DEPENDS "${OUT_WRAPPERS}" "${OUT_REG}" "${OUT_APIS}")
         add_dependencies(${TARGET_NAME} ${GEN_TARGET})
     endforeach()
 
-    string(REPLACE ";" "\n" MANIFEST_DEF_CONTENT "${ALL_GEN_CPP}")
-    string(REPLACE ";" "\n" MANIFEST_DECL_CONTENT "${ALL_GEN_TYPES}")
-    file(GENERATE OUTPUT "${MANIFEST_GENERATED_DEF}" CONTENT "${MANIFEST_DEF_CONTENT}")
-    file(GENERATE OUTPUT "${MANIFEST_GENERATED_DECL}" CONTENT "${MANIFEST_DECL_CONTENT}")
+    string(REPLACE ";" "\n" MANIFEST_WRAPPERS_CONTENT "${ALL_GEN_WRAPPERS}")
+    string(REPLACE ";" "\n" MANIFEST_REG_CONTENT "${ALL_GEN_REG}")
+    string(REPLACE ";" "\n" MANIFEST_APIS_CONTENT "${ALL_GEN_API}")
+    file(GENERATE OUTPUT "${MANIFEST_GENERATED_WRAPPERS}" CONTENT "${MANIFEST_WRAPPERS_CONTENT}")
+    file(GENERATE OUTPUT "${MANIFEST_GENERATED_REG}" CONTENT "${MANIFEST_REG_CONTENT}")
+    file(GENERATE OUTPUT "${MANIFEST_GENERATED_API}" CONTENT "${MANIFEST_APIS_CONTENT}")
     
+    # Build single file
     add_custom_command(
-            OUTPUT "${GENERATED_DEF}" "${GENERATED_DECL}"
-            COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_GENERATED_DEF}" "${MANIFEST_GENERATED_DECL}" "${GENERATED_DEF}" "${GENERATED_DECL}"
+            OUTPUT "${GENERATED_REG}" "${GENERATED_API}"
+            COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_GENERATED_WRAPPERS}" "${MANIFEST_GENERATED_REG}" "${MANIFEST_GENERATED_API}" "${GENERATED_REG}" "${GENERATED_API}"
             DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${ALL_GEN_CPP}" "${ALL_GEN_TYPES}"
             COMMENT "Build Luau bindings..."
             VERBATIM
     )
     set(BUILD_TARGET "build_${TARGET_NAME}_bindings")
-    add_custom_target(${BUILD_TARGET} DEPENDS "${GENERATED_DECL}")
+    add_custom_target(${BUILD_TARGET} DEPENDS "${GENERATED_REG}" "${GENERATED_API}")
     add_dependencies(${TARGET_NAME} ${BUILD_TARGET})
     
 endfunction()
