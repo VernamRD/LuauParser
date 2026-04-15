@@ -1,6 +1,6 @@
 local ParserTypes = {}
 
-ParserTypes.verbose_print = false
+ParserTypes.verbose_print = true
 
 export type LuauDecl = {
     attributes_line: number, -- line number of the @luau attributes

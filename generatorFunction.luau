@@ -71,6 +71,8 @@ local function return_value(decl: ParserTypes.ParsedDecl): string?
         return "lua_pushinteger(L, result); \n\treturn 1;"
     elseif decl.ret_type == ParserTypes.ParsedArgType.String then
         return "lua_pushstring(L, result.c_str()); \n\treturn 1;"
+    elseif decl.ret_type == ParserTypes.ParsedArgType.Nil then
+        return "return 0;"
     end
 
     return "return 0; // Unsupported return type"
