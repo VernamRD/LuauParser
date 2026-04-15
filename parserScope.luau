@@ -13,12 +13,6 @@ function build_full_scope(node: ParserTypes.ScopeNode): {string}
 		node_it = node_it.parent or nil
 	end
 
-    if #decl_full_scope > 0 then
-        print("scope:" .. table.concat(decl_full_scope, "."))
-    else
-        print("scope: empty")
-    end
-
     return decl_full_scope
 end
 

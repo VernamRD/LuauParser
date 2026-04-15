@@ -43,7 +43,39 @@ function build_reg()
     io.appendfile(generated_reg, "}")
 end
 
+local function parse_scope_decls(scope_with_decls, indent: number)
+    local shift = string.rep("\t", indent)
+
+    local result = ""
+
+    if scope_with_decls.decls then
+        result = result .. shift .. scope_with_decls.decls
+    end
+
+    for name, scope in scope_with_decls do
+        if name ~= "decls" and type(scope) == "table" then
+            result ..= shift
+            if indent == 0 then
+               result ..= "declare "
+            end
+
+            result ..= name .. ": {\n"
+            result ..= parse_scope_decls(scope, indent + 1)
+
+            if indent == 0 then
+                result ..= shift .. "}\n"
+            else
+                result ..= shift .. "},\n"
+            end
+        end
+    end
+
+    return result
+end
+
 function build_api()
+    local scope_with_decls = {}
+
     local manifest_api_content = io.readfile(manifest_api)
     local manifest_api_lines: {string} = {}
     for line in manifest_api_content:gmatch("[^\n]+") do
@@ -52,11 +84,50 @@ function build_api()
 
     for _, api_file in manifest_api_lines do
         local api_content = io.readfile(api_file)
-        io.appendfile(generated_api, api_content .. "\n")
+        local api_lines: {string} = {}
+        for line in api_content:gmatch("[^\n]+") do
+            table.insert(api_lines, line)
+        end
+
+        local scope: {string} = {}
+
+        local line_index = 1
+        while line_index <= #api_lines do
+            local line = api_lines[line_index]
+
+            -- clear previous scope
+            scope = {}
+
+            -- Scope comment like api.math
+            local scope_comment = line:match("^%-%-(.-)%-%-$")
+            if scope_comment then
+                for scope_part in scope_comment:gmatch("[^%.]+") do
+                    table.insert(scope, scope_part)
+                end
+                line_index += 1
+                line = api_lines[line_index]
+            end
+
+            -- declare
+            if not (line == "") then
+                local current_scope_with_decl = scope_with_decls
+                if scope and #scope > 0 then
+                    for _, scope_part in scope do
+                        current_scope_with_decl[scope_part] = current_scope_with_decl[scope_part] or {}
+                        current_scope_with_decl = current_scope_with_decl[scope_part]
+                    end
+                end
+
+                current_scope_with_decl.decls = (current_scope_with_decl.decls or "") .. line .. "\n"
+            end
+            
+            line_index += 1
+        end
     end
+
+    io.writefile(generated_api, parse_scope_decls(scope_with_decls, 0))
 end
 
 build_wrapper()
 build_reg()
-io.writefile(generated_api, "")
 build_api()

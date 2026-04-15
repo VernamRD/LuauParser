@@ -118,7 +118,20 @@ function GeneratorFunction.generate_function_luau_reg(decl: ParserTypes.ParsedDe
 end
 
 function GeneratorFunction.generate_function_luau_api(decl: ParserTypes.ParsedDecl): string
-    local result: string = "declare function " .. decl.name .. "("
+    local result: string = ""
+
+    local scope_str: string = ""
+    if decl.scope and #decl.scope > 0 then
+        scope_str = table.concat(decl.scope, ".")
+        scope_str = scope_str .. "."
+    end
+
+    if not (scope_str == "") then       -- Scoped function
+        result = result .. "--" .. scope_str .. "--\n"
+        result ..= decl.name .. ": ("
+    else                                -- Not scoped function
+        result = result .. "declare function " .. decl.name .. "("
+    end
 
     if decl.args then
         local args: {string} = {}
@@ -131,7 +144,18 @@ function GeneratorFunction.generate_function_luau_api(decl: ParserTypes.ParsedDe
     end
 
     if decl.ret_type then
-        result = result .. "): " .. decl.ret_type
+        if not (scope_str == "") then       -- Scoped function
+            if decl.ret_type == ParserTypes.ParsedArgType.Nil then
+                result = result .. ") -> ()"
+            else
+                result = result .. ") -> " .. decl.ret_type
+            end
+
+            result ..= ","
+            
+        else                                -- Not scoped function
+            result = result .. "): " .. decl.ret_type
+        end
     else
         result = result .. ")"
     end
