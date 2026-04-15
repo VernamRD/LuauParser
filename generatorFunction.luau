@@ -102,8 +102,15 @@ end
 function GeneratorFunction.generate_function_luau_reg(decl: ParserTypes.ParsedDecl): string
     local result: string = ""
 
-    result = result .. "lua_pushcfunction(L, luau_" .. decl.name .. ", \"" .. decl.name .. "\");\n"
-    result = result .. "lua_setglobal(L, \"" .. decl.name .. "\");\n"
+    local scope_str: string = ""
+    if decl.scope and #decl.scope > 0 then
+        scope_str = table.concat(decl.scope, ".")
+        scope_str = scope_str .. "."
+    end
+
+    scope_str = scope_str .. decl.name
+
+    result = result .. "register_nested_func(L, \"" .. scope_str .. "\", " .. "luau_" .. decl.name .. ");\n"
 
     return result
 end

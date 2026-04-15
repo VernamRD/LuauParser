@@ -22,6 +22,8 @@ function build_reg()
     end
 
     io.writefile(generated_reg, ("#pragma once\n\n"))
+    
+    io.appendfile(generated_reg, "#include \"" .. "ParserTypes.h" .. "\"\n\n")
 
     for _, wrapper_file in manifest_wrapper_lines do
         local file_name = wrapper_file:match("([^/]+)$")

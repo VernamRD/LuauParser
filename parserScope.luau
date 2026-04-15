@@ -6,14 +6,18 @@ local ParserTypes = require("parserTypes")
 function build_full_scope(node: ParserTypes.ScopeNode): {string}
 	local decl_full_scope: {string} = {}
 
-	if node.parent then
-		-- Check what scope is not simple root
-		local parent = node.parent
-		while parent and not (parent.name == "") do
-			table.insert(decl_full_scope, 1, parent.name)
-			parent = parent.parent
-		end
+	local node_it = node
+	while node_it and not (node_it.name == "") do
+        print("insert " .. node_it.name)
+		table.insert(decl_full_scope, 1, node_it.name)
+		node_it = node_it.parent or nil
 	end
+
+    if #decl_full_scope > 0 then
+        print("scope:" .. table.concat(decl_full_scope, "."))
+    else
+        print("scope: empty")
+    end
 
     return decl_full_scope
 end
