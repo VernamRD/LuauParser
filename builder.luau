@@ -18,7 +18,9 @@ function build_reg()
     local manifest_reg_content = io.readfile(manifest_reg)
     local manifest_reg_lines: {string} = {}
     for line in manifest_reg_content:gmatch("[^\n]+") do
-        table.insert(manifest_reg_lines, line)
+        if not (line == "") then
+            table.insert(manifest_reg_lines, line)
+        end
     end
 
     io.writefile(generated_reg, ("#pragma once\n\n"))
@@ -55,7 +57,6 @@ function build_api()
 end
 
 build_wrapper()
-io.writefile(generated_reg, "")
 build_reg()
 io.writefile(generated_api, "")
 build_api()
