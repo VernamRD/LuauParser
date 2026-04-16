@@ -8,15 +8,23 @@ if(NOT EXISTS "${GENERATED_DIR}")
 endif()
 
 function(register_luau_parser)
-    add_executable (luau_parser "${PARSER_ROOT_DIR}/LuauParser.cpp")
+    add_executable (luau_parser "${PARSER_ROOT_DIR}/Parser/LuauParser.cpp")
     target_link_libraries(luau_parser PRIVATE Luau.VM Luau.Compiler Luau.Ast)
-
-    add_executable (luau_builder "${PARSER_ROOT_DIR}/LuauBuilder.cpp")
+    target_include_directories(luau_parser PRIVATE
+            "${CMAKE_SOURCE_DIR}"
+            "${CMAKE_SOURCE_DIR}/LuauParser"
+    )
+    
+    add_executable (luau_builder "${PARSER_ROOT_DIR}/Builder/LuauBuilder.cpp")
     target_link_libraries(luau_builder PRIVATE Luau.VM Luau.Compiler Luau.Ast)
+    target_include_directories(luau_builder PRIVATE 
+            "${CMAKE_SOURCE_DIR}"
+            "${CMAKE_SOURCE_DIR}/LuauParser"
+    )
 endfunction()
 
-set(LUAU_PARSER "${CMAKE_CURRENT_LIST_DIR}/parser.luau")
-set(LUAU_BUILDER "${CMAKE_CURRENT_LIST_DIR}/builder.luau")
+set(LUAU_PARSER "${CMAKE_CURRENT_LIST_DIR}/Parser/parser.luau")
+set(LUAU_BUILDER "${CMAKE_CURRENT_LIST_DIR}/Builder/builder.luau")
 
 function(build_luau_bindings TARGET_NAME)
     set(HEADER_FILES_LIST ${ARGN})
@@ -88,7 +96,7 @@ function(build_luau_bindings TARGET_NAME)
             VERBATIM
     )
     
-    set(PARSER_UTILITY_FILE_NAME "ParserRegister.h")
+    set(PARSER_UTILITY_FILE_NAME "Parser/ParserRegister.h")
     # Copy ParserRegister.h to generated folder
     add_custom_command(
             OUTPUT "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}"

@@ -1,7 +1,7 @@
 local Generator = {}
 
-local ParserTypes = require("parserTypes")
-local GeneratorFunction = require("generatorFunction")
+local ParserTypes = require("../Parser/parserTypes")
+local GeneratorFunction = require("../Generator/generatorFunction")
 
 function Generator.generate(out_wrapper: string, out_reg: string, out_api: string, decls: {ParserTypes.ParsedDecl})
     local file_wrapper_content = ""

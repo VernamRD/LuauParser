@@ -9,7 +9,7 @@ local ParserDeclaration = require("parserDeclaration")
 local ParserScope = require("parserScope")
 
 if ParserTypes.verbose_print then
-    print ("Generate " .. header)
+    print ("Parse " .. header)
 end
 
 local file_content = io.readfile(header)
@@ -34,5 +34,5 @@ for _, parsed_decl in decls do
     end
 end
 
-local Generator = require("generator")
+local Generator = require("../Generator/generator")
 Generator.generate(out_wrapper, out_reg, out_api, parsed_decls)

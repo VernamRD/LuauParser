@@ -1,6 +1,6 @@
 local GeneratorFunction = {}
 
-local ParserTypes = require("parserTypes")
+local ParserTypes = require("../Parser/parserTypes")
 
 local function get_argument(arg: ParserTypes.ParsedArg, index: number): string
     local arg_str = arg.original_type .. " " .. arg.name .. " = "

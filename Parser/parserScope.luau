@@ -8,7 +8,6 @@ function build_full_scope(node: ParserTypes.ScopeNode): {string}
 
 	local node_it = node
 	while node_it and not (node_it.name == "") do
-        print("insert " .. node_it.name)
 		table.insert(decl_full_scope, 1, node_it.name)
 		node_it = node_it.parent or nil
 	end
