@@ -24,23 +24,23 @@ void register_nested_func(lua_State* L, const char* path, lua_CFunction func)
 
     lua_getglobal(L, "_G");
 
-    for (size_t i = 0; i < parts.size() - 1; ++i) {
-        lua_getfield(L, -1, parts[i].c_str());
+    for (size_t i = 0; i < scope_arr.size() - 1; ++i) {
+        lua_getfield(L, -1, scope_arr[i].c_str());
         
         if (lua_isnil(L, -1)) {
             lua_pop(L, 1);
             lua_newtable(L);
             lua_pushvalue(L, -1);
-            lua_setfield(L, -3, parts[i].c_str());
+            lua_setfield(L, -3, scope_arr[i].c_str());
         } else if (!lua_istable(L, -1)) {
-            lua_pop(L, parts.size() + 1); 
+            lua_pop(L, scope_arr.size() + 1); 
             return;
         }
         lua_remove(L, -2);
     }
     
-    lua_pushcfunction(L, func, parts.back().c_str());
-    lua_setfield(L, -2, parts.back().c_str());
+    lua_pushcfunction(L, func, scope_arr.back().c_str());
+    lua_setfield(L, -2, scope_arr.back().c_str());
 
     lua_pop(L, 1);
 }

@@ -75,8 +75,14 @@ static int io_appendfile(lua_State* L)
     return 1;
 }
 
+static int io_source_directory(lua_State* L)
+{
+    lua_pushstring(L, g_script_dir.c_str());
+    return 1;
+}
+
 static const luaL_Reg io_lib[] = {
-    {"readfile", io_readfile}, {"writefile", io_writefile}, {"appendfile", io_appendfile}, {nullptr, nullptr}};
+    {"readfile", io_readfile}, {"writefile", io_writefile}, {"appendfile", io_appendfile}, {"source_directory", io_source_directory}, {nullptr, nullptr}};
 #pragma endregion io
 
 #pragma region require

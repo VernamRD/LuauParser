@@ -25,6 +25,9 @@ function(build_luau_bindings TARGET_NAME)
     set(GENERATED_REG "${GENERATED_DIR}/${TARGET_NAME}_generated.h")
     # Luau function declaration
     set(GENERATED_API "${GENERATED_DIR}/${TARGET_NAME}_api.d.luau")
+
+    # Function registration
+    set(OUTPUT_INCLUDE "${PARSER_ROOT_DIR}/include/luau_parser_bindings.h")
     
     set(MANIFEST_GENERATED_WRAPPERS "${GENERATED_DIR}/${TARGET_NAME}_generated_wrappers.manifest")
     if(NOT EXISTS "${MANIFEST_GENERATED_WRAPPERS}")
@@ -78,14 +81,26 @@ function(build_luau_bindings TARGET_NAME)
     
     # Build single file
     add_custom_command(
-            OUTPUT "${GENERATED_REG}" "${GENERATED_API}"
-            COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_GENERATED_WRAPPERS}" "${MANIFEST_GENERATED_REG}" "${MANIFEST_GENERATED_API}" "${GENERATED_REG}" "${GENERATED_API}"
+            OUTPUT "${GENERATED_REG}" "${GENERATED_API}" "${OUTPUT_INCLUDE}"
+            COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_GENERATED_WRAPPERS}" "${MANIFEST_GENERATED_REG}" "${MANIFEST_GENERATED_API}" "${GENERATED_REG}" "${GENERATED_API}" "${OUTPUT_INCLUDE}"
             DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${ALL_GEN_WRAPPERS}" "${ALL_GEN_API}"
             COMMENT "Build Luau bindings..."
             VERBATIM
     )
-    set(BUILD_TARGET "build_${TARGET_NAME}_bindings")
-    add_custom_target(${BUILD_TARGET} DEPENDS "${GENERATED_REG}" "${GENERATED_API}")
-    add_dependencies(${TARGET_NAME} ${BUILD_TARGET})
     
+    set(PARSER_UTILITY_FILE_NAME "ParserRegister.h")
+    # Copy ParserRegister.h to generated folder
+    add_custom_command(
+            OUTPUT "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}"
+            COMMAND ${CMAKE_COMMAND} -E copy
+            "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
+            "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}"
+            DEPENDS "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
+            COMMENT "Copying parser utility file to generated directory"
+            VERBATIM
+    )
+    
+    set(BUILD_TARGET "build_${TARGET_NAME}_bindings")
+    add_custom_target(${BUILD_TARGET} DEPENDS "${GENERATED_REG}" "${GENERATED_API}" "${OUTPUT_INCLUDE}" "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}")
+    add_dependencies(${TARGET_NAME} ${BUILD_TARGET})
 endfunction()

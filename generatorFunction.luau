@@ -40,7 +40,7 @@ local function function_call(decl: ParserTypes.ParsedDecl): string
         function_call = table.concat(decl.scope, "::") .. "::" .. function_call
     end
 
-    if decl.ret_original_type then
+    if decl.ret_original_type and decl.ret_type ~= ParserTypes.ParsedArgType.Nil then
         result = result .. decl.ret_original_type .. " result = " 
     end
     result = result .. function_call .. "("
@@ -55,7 +55,7 @@ local function function_call(decl: ParserTypes.ParsedDecl): string
         result = result .. table.concat(arg_names, ", ")
     end
 
-    result = result .. ")"
+    result = result .. ");"
 
     return result
 end
