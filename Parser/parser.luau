@@ -1,4 +1,5 @@
 assert(arg[1] == "-a", "Expected -a flag")
+assert(arg[1] == "-a", "Expected -a flag")
 local out_wrapper   = arg[2]
 local out_reg = arg[3]
 local out_api = arg[4]
@@ -24,7 +25,7 @@ if ParserTypes.verbose_print then
     print("Parsing declarations...")
 end
 
-local parsed_decls: {ParserTypes.ParsedDecl} = {}
+local parsed_decls: {ParserTypes.ParsedDeclFunc} = {}
 local decls = ParserDeclaration.parse_luau_decl(file_lines, luau_decls)
 for _, parsed_decl in decls do
     table.insert(parsed_decls, parsed_decl)

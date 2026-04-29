@@ -8,15 +8,16 @@ export type LuauDecl = {
     attributes_str: string, -- line with @luau attributes
     declaration_line: number, -- line number of the start declaration (function or field)
     declaration_str: string, -- the declaration line, function signature and field declaration include inline definition
-    scope: {string}? -- e.g. {"namespace", "class"}
+    scope: {ScopeDecl}? -- e.g. {"namespace", "class"}
 }
 
-export type ParsedArgType = "nil" | "boolean" | "number" | "string"
+export type ParsedArgType = "nil" | "boolean" | "number" | "string" | "userdata"
 ParserTypes.ParsedArgType = table.freeze({
     Nil = "nil" :: ParsedArgType,
     Boolean = "boolean" :: ParsedArgType,
     Number = "number" :: ParsedArgType,
     String = "string" :: ParsedArgType,
+    Userdata = "userdata" :: ParsedArgType
 })
 
 ParserTypes.ArgTypeMapping = table.freeze({
@@ -41,7 +42,8 @@ export type ParsedArg = {
     name: string,
     type: ParsedArgType,
     default: string?,
-    original_type: string, -- the original C++ type as a string, e.g. "int"
+    original_type: string, -- the original C++ type as a string, e.g. "int", "float"
+    is_self: boolean?
 }
 
 export type LuauAttrType = "export" | "rename" | "undefined"
@@ -62,25 +64,31 @@ ParserTypes.DeclKind = table.freeze({
     Unknown = "unknown" :: DeclKind,
 })
 
-export type ParsedDecl = {
+export type ScopeDecl = {
+    kind: ScopeKind,
+    name: string,
+}
+
+export type ParsedDeclFunc = {
     kind: DeclKind,
     name: string,
-    attributes: {LuauAttr}?, -- parsed attributes from the @luau line
-    ret_type: ParsedArgType?,  -- only for function
-    ret_original_type: string?, -- only for function, the original C++ return type as a string
-    field_type: ParsedArgType?, -- only for field
+    attributes: {LuauAttr}?,    -- parsed attributes from the @luau line
+    ret_type: ParsedArgType?,   -- return type in luau
+    ret_original_type: string?, -- return type in c++
     args: {ParsedArg}?,
     is_const: boolean,
     is_static: boolean,
-    scope: {string}? -- e.g. {"namespace", "class"}
+    is_field: boolean,          -- is field of class/struct
+    scope: {ScopeDecl}?         -- e.g. {"namespace", "class"}
 }
 
-export type ScopeKind = "root" | "block" | "namespace" | "class" | "enum" | "inline" |"unknown"
+export type ScopeKind = "root" | "block" | "namespace" | "class" | "struct" | "enum" | "inline" |"unknown"
 ParserTypes.ScopeKind = table.freeze({
     Root = "root" :: ScopeKind,
     Block = "block" :: ScopeKind,
     Namespace = "namespace" :: ScopeKind,
     Class = "class" :: ScopeKind,
+    Struct = "struct" :: ScopeKind,
     Enum = "enum" :: ScopeKind,
     Inline = "inline" :: ScopeKind,
     Unknown = "unknown" :: ScopeKind,

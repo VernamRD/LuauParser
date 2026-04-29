@@ -106,26 +106,34 @@ local function parse_arguments(args_str: string): {ParserTypes.ParsedArg}
 	return result
 end
 
-local function parse_declaration(decl: string): ParserTypes.ParsedDecl
-	decl = decl:gsub(";%s*$", "") -- Remove trailing semicolon
+local function parse_declaration(decl: ParserTypes.LuauDecl): ParserTypes.ParsedDeclFunc
+	local decl_str = decl.declaration_str:gsub(";%s*$", "") -- Remove trailing semicolon
 
 	local is_static = false
 	local is_const = false
+	local is_field = false
 
 	-- Remove "static" keyword if it exists
-	if decl:match("^%s*static%s+") then
+	if decl_str:match("^%s*static%s+") then
 		is_static = true
-		decl = decl:gsub("^%s*static%s+", "")
+		decl = decl_str:gsub("^%s*static%s+", "")
 	end
 
 	-- Remove "const" keyword if it exists
-	if decl:match("%s+const%s*$") then
+	if decl_str:match("%s+const%s*$") then
 		is_const = true
-		decl = decl:gsub("%s+const%s*$", "")
+		decl = decl_str:gsub("%s+const%s*$", "")
+	end
+
+	if decl.scope and #decl.scope > 0 then
+		local last_scope = decl.scope[#decl.scope]
+		if last_scope.kind == ParserTypes.ScopeKind.Class or last_scope.kind == ParserTypes.ScopeKind.Struct then
+			is_field = true
+		end
 	end
 
 	-- Try to match function declaration pattern: "ret_type fn_name(args)"
-	local ret_and_name, args_str = decl:match("^(.-)%s*%((.*)%)%s*$")
+	local ret_and_name, args_str = decl_str:match("^(.-)%s*%((.*)%)%s*$")
 	if ret_and_name then
 	-- ret_and_name = "RayIntersectionResult Intersects"
 		local ret_type, fn_name = ret_and_name:match("^(.-)%s+([%w_:~]+)%s*$")
@@ -138,38 +146,54 @@ local function parse_declaration(decl: string): ParserTypes.ParsedDecl
 				args     = parse_arguments(args_str),
 				is_const = is_const,
 				is_static = is_static,
+				is_field = is_field,
 			}
 		end
 	end
 
-	local field_decl = decl:gsub("%s*=.*$", "") -- убираем = value
-	local field_type, field_name = field_decl:match("^(.-)%s+([%w_]+)%s*$")
-	if field_name then
-		return {
-			kind       = ParserTypes.DeclKind.Field,
-			name       = field_name,
-			field_type = parse_type(field_type),
-			is_const   = is_const,
-			is_static  = is_static,
-		}
-	end
-
-	return { kind = ParserTypes.DeclKind.Unknown, name = decl, is_const = is_const, is_static = is_static }
+	return { kind = ParserTypes.DeclKind.Unknown, name = decl.declaration_str, is_const = is_const, is_static = is_static, is_field = is_field }
 end
 
-function ParserDeclaration.parse_luau_decl(file_lines: {string}, decls: {ParserTypes.LuauDecl}): {ParserTypes.ParsedDecl}
-	local parsed_decls: {ParserTypes.ParsedDecl} = {}
+local function parse_self_arguments(parsed_decl: ParserTypes.ParsedDeclFunc)
+	if parsed_decl.is_static or not parsed_decl.is_field then
+		return
+	end
+
+	if not parsed_decl.scope or #parsed_decl.scope <= 0 then
+		return
+	end
+
+	local last_scope = parsed_decl.scope[#parsed_decl.scope]
+	if last_scope.kind == ParserTypes.ScopeKind.Class then
+		local self_arg: ParserTypes.ParsedArg = {
+			name = "self",
+			type = ParserTypes.ParsedArgType.Userdata,
+			original_type = last_scope.name,
+			is_self = true
+		}
+
+		if parsed_decl.args then
+			table.insert(parsed_decl.args, 1, self_arg)
+		else
+			parsed_decl.args = {self_arg}
+		end
+	end
+end
+
+function ParserDeclaration.parse_luau_decl(file_lines: {string}, decls: {ParserTypes.LuauDecl}): {ParserTypes.ParsedDeclFunc}
+	local parsed_decls: {ParserTypes.ParsedDeclFunc} = {}
 	for _, luau_decl in pairs(decls) do
-		local parsed_decl: ParserTypes.ParsedDecl = parse_declaration(luau_decl.declaration_str)
+		local parsed_decl: ParserTypes.ParsedDeclFunc = parse_declaration(luau_decl)
 		parsed_decl.attributes = parse_attributes(luau_decl.attributes_str)
 		parsed_decl.scope = luau_decl.scope
+		parse_self_arguments(parsed_decl)
 		table.insert(parsed_decls, parsed_decl)
 	end
 
 	return parsed_decls
 end
 
-function ParserDeclaration.print_parsed_decl(parsed_decl: ParserTypes.ParsedDecl)
+function ParserDeclaration.print_parsed_decl(parsed_decl: ParserTypes.ParsedDeclFunc)
 	print("kind: " .. parsed_decl.kind)
 	print("\tname: " .. parsed_decl.name)
 	if parsed_decl.scope then

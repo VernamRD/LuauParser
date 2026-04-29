@@ -1,23 +1,32 @@
+--!strict
 local ParserScope = {}
 
 local ParserTypes = require("parserTypes")
 
 -- Build full scope path for the declaration, e.g. {"Namespace", "Class"}
-function build_full_scope(node: ParserTypes.ScopeNode): {string}
-	local decl_full_scope: {string} = {}
+function build_full_scope(node: ParserTypes.ScopeNode): {ParserTypes.ScopeDecl}
+	local decl_full_scope: {ParserTypes.ScopeDecl} = {}
 
-	local node_it = node
+	local node_it: ParserTypes.ScopeNode? = node
 	while node_it and not (node_it.name == "") do
-		table.insert(decl_full_scope, 1, node_it.name)
+        local scope: ParserTypes.ScopeDecl = {
+            kind = node_it.kind,
+            name = node_it.name
+        }
+
+		table.insert(decl_full_scope, 1, scope)
 		node_it = node_it.parent or nil
 	end
 
     return decl_full_scope
 end
 
-function parse_decl(node: ParserTypes.ScopeNode, attr_str: string, line_index: number, lines: {string}): {decl: ParserTypes.LuauDecl, line_offset: number}
+function parse_decl(node: ParserTypes.ScopeNode, attr_str: string, line_index: number, lines: {string}): {decl: ParserTypes.LuauDecl, line_offset: number}?
     -- Remove trailing whitespace and optional * or / characters
-	attr_str_trimmed = attr_str:match("^(.-)%s*%*?/?%s*$")
+	local attr_str_trimmed = attr_str:match("^(.-)%s*%*?/?%s*$")
+    if not attr_str_trimmed then
+        return nil
+    end
 
 	-- Find declaration line after attributes
 	local j = line_index + 1
@@ -25,7 +34,7 @@ function parse_decl(node: ParserTypes.ScopeNode, attr_str: string, line_index: n
 		j = j + 1
 	end
 	local decl_line = lines[j] or ""
-	decl_line = decl_line:match("^%s*(.-)%s*$") -- Match function or variable declaration
+	decl_line = decl_line:match("^%s*(.-)%s*$") or "?null decl?" -- Match function or variable declaration
 	local decl: ParserTypes.LuauDecl = {
 		attributes_line = line_index,
 		attributes_str = attr_str_trimmed,
@@ -54,7 +63,7 @@ end
 function ParserScope.parse_file(file_lines: {string}) : {ParserTypes.LuauDecl}
     local decls: {ParserTypes.LuauDecl} = {}
 
-    local root: ParserTypes.ScopeNode = { kind = ParserTypes.ScopeKind.Root, name = "", children = {}, body = "", line_start = 0}
+    local root: ParserTypes.ScopeNode = { kind = ParserTypes.ScopeKind.Root, name = "root", children = {}, body = "", line_start = 0}
     local stack = { root }
 
     root.line_end = #file_lines + 1
@@ -68,7 +77,7 @@ function ParserScope.parse_file(file_lines: {string}) : {ParserTypes.LuauDecl}
         local current = stack[#stack]
 
         -- Skip empty lines but remember context
-        if trimmed == "" then
+        if not trimmed or trimmed == "" then
             line_index += 1
             continue
         end
@@ -77,8 +86,10 @@ function ParserScope.parse_file(file_lines: {string}) : {ParserTypes.LuauDecl}
         local attr_str = trimmed:match("@luau%s*(.*)")
         if attr_str then
             local result = parse_decl(current, attr_str, line_index, file_lines)
-            table.insert(decls, result.decl)
-            line_index += result.line_offset
+            if result then
+                table.insert(decls, result.decl)
+                line_index += result.line_offset
+            end
         end
 
         -- { check before } to handle inline blocks correctly
@@ -91,7 +102,7 @@ function ParserScope.parse_file(file_lines: {string}) : {ParserTypes.LuauDecl}
             end
 
             -- Block header: either on this line before {, or it was prev_trimmed
-            local header = trimmed:gsub("{.*$", ""):match("^%s*(.-)%s*$")
+            local header = trimmed:gsub("{.*$", ""):match("^%s*(.-)%s*$") or ""
             if header == "" then
                 -- { placed separately - header is the previous line
                 header = prev_trimmed
@@ -102,17 +113,19 @@ function ParserScope.parse_file(file_lines: {string}) : {ParserTypes.LuauDecl}
 
             if header:match("^namespace%s+") then
                 kind = ParserTypes.ScopeKind.Namespace
-                name = header:match("^namespace%s+(.+)$")
+                name = header:match("^namespace%s+(.+)$") or ""
             elseif header:match("^struct%s+") then
                 kind = ParserTypes.ScopeKind.Struct
-                name = header:match("^struct%s+([%w_]+)")
+                name = header:match("^struct%s+([%w_]+)") or ""
             elseif header:match("^class%s+") then
                 kind = ParserTypes.ScopeKind.Class
-                name = header:match("^class%s+([%w_]+)")
+                name = header:match("^class%s+([%w_]+)") or ""
             elseif header:match("^enum%s+") then
                 kind = ParserTypes.ScopeKind.Enum
-                name = header:match("^enum%s*class%s+([%w_]+)") 
-                    or header:match("^enum%s+([%w_]+)")
+                name = header:match("^enum%s*class%s+([%w_]+)")
+                    or header:match("^enum%s+([%w_]+)") or ""
+            else
+                kind = ParserTypes.ScopeKind.Unknown
             end
 
             local node: ParserTypes.ScopeNode = {
