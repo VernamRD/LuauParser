@@ -111,4 +111,7 @@ function(build_luau_bindings TARGET_NAME)
     set(BUILD_TARGET "build_${TARGET_NAME}_bindings")
     add_custom_target(${BUILD_TARGET} DEPENDS "${GENERATED_REG}" "${GENERATED_API}" "${OUTPUT_INCLUDE}" "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}")
     add_dependencies(${TARGET_NAME} ${BUILD_TARGET})
+
+    target_include_directories(${TARGET_NAME} PRIVATE "${GENERATED_DIR}")
+    target_include_directories(${TARGET_NAME} PRIVATE "${PARSER_ROOT_DIR}/include")
 endfunction()

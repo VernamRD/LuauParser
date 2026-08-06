@@ -10,6 +10,16 @@ local manifest_wrapper_lines: {string} = {}
 local BuilderTypes = require("builderTypes")
 local BuilderApi = require("builderApi")
 
+local function get_file_name(full_path: string): string
+    -- Normalize path to use forward slashes
+    local normalized_path = full_path:gsub("\\", "/")
+    
+    -- Extract the file name after the last slash
+    local file_name = normalized_path:match("[^/]+$") or full_path
+    
+    return file_name
+end
+
 local function get_relative_path(full_path: string): string
     local source_directory = tostring(io.source_directory())
 
@@ -51,7 +61,7 @@ function build_reg()
 
     io.writefile(generated_reg, ("#pragma once\n\n"))
     
-    io.appendfile(generated_reg, "#include \"" .. "ParserRegister.h" .. "\"\n\n")
+    io.appendfile(generated_reg, "#include \"" .. "Parser/ParserRegister.h" .. "\"\n\n")
 
     for _, wrapper_file in manifest_wrapper_lines do
         local file_name = wrapper_file:match("([^/]+)$")
@@ -77,7 +87,7 @@ local function build_output_include()
     local result = ""
     result ..= "#pragma once\n\n"
 
-    result ..= "#include \"" .. get_relative_path(generated_reg) .. "\"\n\n"
+    result ..= "#include \"" .. get_file_name(generated_reg) .. "\"\n\n"
     result ..= "void register_bindings(lua_State* L)\n{\n"
     result ..= "\tregister_internal(L);\n}"
 
