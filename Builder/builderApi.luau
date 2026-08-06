@@ -11,7 +11,6 @@ local function parse_scope_decls(builder_decl_tree: BuilderTypes.BuilderDeclTree
 
     if builder_decl_tree.decls then
         for _, decl in builder_decl_tree.decls do
-            print(decl.decl)
             result ..= shift .. decl.decl
         end
     end
