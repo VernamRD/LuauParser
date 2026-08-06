@@ -69,6 +69,19 @@ export type ScopeDecl = {
     name: string,
 }
 
+function ParserTypes.concat_scope(scope: {ScopeDecl}): string
+    local scope_parts: {string} = {}
+    for _, scope_part in scope do
+        if scope_part.kind == ParserTypes.ScopeKind.Root then
+            continue
+        end
+
+        table.insert(scope_parts, scope_part.name)
+    end
+
+    return table.concat(scope_parts, "::")
+end
+
 export type ParsedDeclFunc = {
     kind: DeclKind,
     name: string,

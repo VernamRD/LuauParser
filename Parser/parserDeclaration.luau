@@ -168,7 +168,8 @@ local function parse_self_arguments(parsed_decl: ParserTypes.ParsedDeclFunc)
 		local self_arg: ParserTypes.ParsedArg = {
 			name = "self",
 			type = ParserTypes.ParsedArgType.Userdata,
-			original_type = last_scope.name,
+			-- We must resolve self type with all namespace and class name, e.g. "namespace::namespace::class"
+			original_type = ParserTypes.concat_scope(parsed_decl.scope),
 			is_self = true
 		}
 
