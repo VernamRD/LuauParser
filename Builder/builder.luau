@@ -1,14 +1,14 @@
-assert(arg[1] == "-a", "Expected -a flag")
-local manifest_wrappers   = arg[2]
-local manifest_reg = arg[3]
-local manifest_api = arg[4]
-local generated_reg = arg[5]
-local generated_api = arg[6]
-local output_include = arg[7]
+--!strict
 
-local manifest_wrapper_lines: {string} = {}
+assert(arg[1] == "-a", "Expected -a flag")
+local manifest_decls   = arg[2]
+local generated_api = arg[3]
+local output_include = arg[4]
+
 local BuilderTypes = require("builderTypes")
-local BuilderApi = require("builderApi")
+local BuilderApi = require("builderAPI")
+local Json = require("../json")
+local ParserTypes = require("../parserTypes")
 
 local function get_file_name(full_path: string): string
     -- Normalize path to use forward slashes
@@ -43,58 +43,18 @@ local function get_relative_path(full_path: string): string
     return relative_path
 end
 
-function build_wrapper()
-    local manifest_wrapper_content = io.readfile(manifest_wrappers)
-    for line in manifest_wrapper_content:gmatch("[^\n]+") do
-        table.insert(manifest_wrapper_lines, line)
-    end
+local manifest_lines: {string} = {}
+local manifest_content = io.readfile(manifest_decls)
+for line in manifest_content:gmatch("[^\n]+") do
+    table.insert(manifest_lines, line)
 end
 
-function build_reg()
-    local manifest_reg_content = io.readfile(manifest_reg)
-    local manifest_reg_lines: {string} = {}
-    for line in manifest_reg_content:gmatch("[^\n]+") do
-        if not (line == "") then
-            table.insert(manifest_reg_lines, line)
-        end
-    end
+local builder_api: BuilderApi.BuilderApi = BuilderApi.new()
 
-    io.writefile(generated_reg, ("#pragma once\n\n"))
-    
-    io.appendfile(generated_reg, "#include \"" .. "Parser/ParserRegister.h" .. "\"\n\n")
-
-    for _, wrapper_file in manifest_wrapper_lines do
-        local file_name = wrapper_file:match("([^/]+)$")
-        io.appendfile(generated_reg, "#include \"" .. file_name .. "\"\n")
-    end
-    io.appendfile(generated_reg, "\n")
-
-    io.appendfile(generated_reg, "void register_internal(lua_State* L)\n" .. "{\n")
-
-    for _, reg_file in manifest_reg_lines do
-        local reg_content = io.readfile(reg_file)
-        io.appendfile(generated_reg, reg_content .. "\n")
-    end
-
-    io.appendfile(generated_reg, "}")
+for _, decls_file in manifest_lines do
+    local file_content: string = io.readfile(decls_file)
+    local decls: {ParserTypes.ParsedDecl} = Json.decode(file_content)
+    builder_api:append_decls(decls)
 end
 
-function build_api()
-    io.writefile(generated_api, BuilderApi.parse_api_str(manifest_api))
-end
-
-local function build_output_include()
-    local result = ""
-    result ..= "#pragma once\n\n"
-
-    result ..= "#include \"" .. get_file_name(generated_reg) .. "\"\n\n"
-    result ..= "void register_bindings(lua_State* L)\n{\n"
-    result ..= "\tregister_internal(L);\n}"
-
-    io.writefile(output_include, result)
-end
-
-build_wrapper()
-build_reg()
-build_api()
-build_output_include()
+io.writefile(generated_api, builder_api:build())

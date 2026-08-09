@@ -7,6 +7,8 @@ if(NOT EXISTS "${GENERATED_DIR}")
     file(MAKE_DIRECTORY "${GENERATED_DIR}")
 endif()
 
+set(PARSER_UTILITY_FILE_NAME "Parser/ParserRegister.h")
+
 function(register_luau_parser)
     add_executable (luau_parser "${PARSER_ROOT_DIR}/Parser/LuauParser.cpp")
     target_link_libraries(luau_parser PRIVATE Luau.VM Luau.Compiler Luau.Ast)
@@ -37,81 +39,62 @@ function(build_luau_bindings TARGET_NAME)
     # Function registration
     set(OUTPUT_INCLUDE "${PARSER_ROOT_DIR}/include/luau_parser_bindings.h")
     
-    set(MANIFEST_GENERATED_WRAPPERS "${GENERATED_DIR}/${TARGET_NAME}_generated_wrappers.manifest")
-    if(NOT EXISTS "${MANIFEST_GENERATED_WRAPPERS}")
-        file(WRITE "${MANIFEST_GENERATED_WRAPPERS}")
+    set(MANIFEST_PARSED_DECLS "${GENERATED_DIR}/${TARGET_NAME}/parsed_decls.manifest")
+    if(NOT EXISTS "${MANIFEST_PARSED_DECLS}")
+        file(WRITE "${MANIFEST_PARSED_DECLS}")
     endif()
-    
-    set(MANIFEST_GENERATED_REG "${GENERATED_DIR}/${TARGET_NAME}_generated_reg.manifest")
-    if(NOT EXISTS "${MANIFEST_GENERATED_REG}")
-        file(WRITE "${MANIFEST_GENERATED_REG}")
-    endif()
-    
-    set(MANIFEST_GENERATED_API "${GENERATED_DIR}/${TARGET_NAME}_generated_api.manifest")
-    if(NOT EXISTS "${MANIFEST_GENERATED_API}")
-        file(WRITE "${MANIFEST_GENERATED_API}")
-    endif()
+    set(ALL_PARSED_DECLS "")
 
-    set(ALL_GEN_WRAPPERS "")
-    set(ALL_GEN_REG "")
-    set(ALL_GEN_API "")
-    
+    set(PARSE_TARGET "generate_${TARGET_NAME}_${HEADER_NAME}_bindings")
+    add_custom_target(${PARSE_TARGET})
+
     # Parse each header
     foreach (HEADER ${HEADER_FILES_LIST})
         get_filename_component(HEADER_NAME ${HEADER} NAME_WE)
-        set(OUT_WRAPPERS "${GENERATED_DIR}/wrapper_${TARGET_NAME}_${HEADER_NAME}.h")
-        set(OUT_REG "${GENERATED_DIR}/reg_${TARGET_NAME}_${HEADER_NAME}.h")
-        set(OUT_APIS "${GENERATED_DIR}/api_${TARGET_NAME}_${HEADER_NAME}.d.luau")
-        
-        list(APPEND ALL_GEN_WRAPPERS "${OUT_WRAPPERS}")
-        list(APPEND ALL_GEN_REG "${OUT_REG}")
-        list(APPEND ALL_GEN_API "${OUT_APIS}")
-        
+        set(OUT_PARSED_DECLS "${GENERATED_DIR}/${TARGET_NAME}/${HEADER_NAME}_ParsedDecls.json")
+
+        list(APPEND ALL_PARSED_DECLS "${OUT_PARSED_DECLS}")
+
         add_custom_command(
-                OUTPUT "${OUT_WRAPPERS}" "${OUT_REG}" "${OUT_APIS}"
-                COMMAND ${LUAU_PARSER_EXE} "${LUAU_PARSER}" -a "${OUT_WRAPPERS}" "${OUT_REG}" "${OUT_APIS}" ${HEADER}
-                DEPENDS ${LUAU_PARSER_EXE} "${LUAU_PARSER}" ${HEADER}
-                COMMENT "Generating Luau bindings for ${HEADER}..."
-                VERBATIM
+            OUTPUT "${OUT_PARSED_DECLS}"
+            COMMAND ${LUAU_PARSER_EXE} "${LUAU_PARSER}" -a "${OUT_PARSED_DECLS}" ${HEADER}
+            DEPENDS ${LUAU_PARSER_EXE} "${LUAU_PARSER}" ${HEADER}
+            COMMENT "Parse Luau bindings for ${HEADER}..."
+            VERBATIM
         )
-        
-        set(GEN_TARGET "generate_${TARGET_NAME}_${HEADER_NAME}_bindings")
-        add_custom_target(${GEN_TARGET} DEPENDS "${OUT_WRAPPERS}" "${OUT_REG}" "${OUT_APIS}")
-        add_dependencies(${TARGET_NAME} ${GEN_TARGET})
+
+        set(SINGLE_PARSE_TARGET "Generate_${TARGET_NAME}_${HEADER_NAME}_bindings")
+        add_custom_target(${SINGLE_PARSE_TARGET} DEPENDS "${OUT_PARSED_DECLS}")
+        add_dependencies(${PARSE_TARGET} ${SINGLE_PARSE_TARGET})
     endforeach()
 
-    string(REPLACE ";" "\n" MANIFEST_WRAPPERS_CONTENT "${ALL_GEN_WRAPPERS}")
-    string(REPLACE ";" "\n" MANIFEST_REG_CONTENT "${ALL_GEN_REG}")
-    string(REPLACE ";" "\n" MANIFEST_APIS_CONTENT "${ALL_GEN_API}")
-    file(GENERATE OUTPUT "${MANIFEST_GENERATED_WRAPPERS}" CONTENT "${MANIFEST_WRAPPERS_CONTENT}")
-    file(GENERATE OUTPUT "${MANIFEST_GENERATED_REG}" CONTENT "${MANIFEST_REG_CONTENT}")
-    file(GENERATE OUTPUT "${MANIFEST_GENERATED_API}" CONTENT "${MANIFEST_APIS_CONTENT}")
-    
-    # Build single file
-    add_custom_command(
-            OUTPUT "${GENERATED_REG}" "${GENERATED_API}" "${OUTPUT_INCLUDE}"
-            COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_GENERATED_WRAPPERS}" "${MANIFEST_GENERATED_REG}" "${MANIFEST_GENERATED_API}" "${GENERATED_REG}" "${GENERATED_API}" "${OUTPUT_INCLUDE}"
-            DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${ALL_GEN_WRAPPERS}" "${ALL_GEN_API}"
-            COMMENT "Build Luau bindings..."
-            VERBATIM
-    )
-    
-    set(PARSER_UTILITY_FILE_NAME "Parser/ParserRegister.h")
+    # Format the manifest file with newlines
+    string(REPLACE ";" "\n" MANIFEST_PARSED_DECLS_CONTENT "${ALL_PARSED_DECLS}")
+    file(GENERATE OUTPUT "${MANIFEST_PARSED_DECLS}" CONTENT "${MANIFEST_PARSED_DECLS_CONTENT}")
+
     # Copy ParserRegister.h to generated folder
     add_custom_command(
-            OUTPUT "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}"
-            COMMAND ${CMAKE_COMMAND} -E copy
-            "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
-            "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}"
-            DEPENDS "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
-            COMMENT "Copying parser utility file to generated directory"
-            VERBATIM
+        OUTPUT "${GENERATED_DIR}/${TARGET_NAME}/${PARSER_UTILITY_FILE_NAME}"
+        COMMAND ${CMAKE_COMMAND} -E copy
+        "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
+        "${GENERATED_DIR}/${TARGET_NAME}/${PARSER_UTILITY_FILE_NAME}"
+        DEPENDS "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
+        COMMENT "Copying parser utility file to generated directory"
+        VERBATIM
     )
-    
-    set(BUILD_TARGET "build_${TARGET_NAME}_bindings")
-    add_custom_target(${BUILD_TARGET} DEPENDS "${GENERATED_REG}" "${GENERATED_API}" "${OUTPUT_INCLUDE}" "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}")
-    add_dependencies(${TARGET_NAME} ${BUILD_TARGET})
 
+    # Build single file
+    add_custom_command(
+        OUTPUT "${GENERATED_API}" "${OUTPUT_INCLUDE}"
+        COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_PARSED_DECLS}" "${GENERATED_API}" "${OUTPUT_INCLUDE}"
+        DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${PARSE_TARGET}" "${MANIFEST_PARSED_DECLS}"
+        COMMENT "Build Luau bindings and API..."
+        VERBATIM
+    )
+    set(PARSER_BUILD_TARGET "Build_${TARGET_NAME}_luau_bindings")
+    add_custom_target(${PARSER_BUILD_TARGET} DEPENDS "${GENERATED_API}" "${OUTPUT_INCLUDE}")
+
+    add_dependencies(${TARGET_NAME} ${PARSER_BUILD_TARGET})
     target_include_directories(${TARGET_NAME} PRIVATE "${GENERATED_DIR}")
     target_include_directories(${TARGET_NAME} PRIVATE "${PARSER_ROOT_DIR}/include")
 endfunction()

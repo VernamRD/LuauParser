@@ -1,6 +1,6 @@
 local GeneratorFunction = {}
 
-local ParserTypes = require("../Parser/parserTypes")
+local ParserTypes = require("../parserTypes")
 local BuilderTypes = require("../Builder/builderTypes")
 
 local function scope_to_string_arr(scope: {ParserTypes.ScopeDecl}): {string}

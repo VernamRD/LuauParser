@@ -1,7 +1,7 @@
 --!strict
 local ParserScope = {}
 
-local ParserTypes = require("parserTypes")
+local ParserTypes = require("../parserTypes")
 
 -- Build full scope path for the declaration, e.g. {"Namespace", "Class"}
 function build_full_scope(node: ParserTypes.ScopeNode): {ParserTypes.ScopeDecl}

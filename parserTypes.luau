@@ -8,7 +8,7 @@ export type LuauDecl = {
     attributes_str: string, -- line with @luau attributes
     declaration_line: number, -- line number of the start declaration (function or field)
     declaration_str: string, -- the declaration line, function signature and field declaration include inline definition
-    scope: {ScopeDecl}? -- e.g. {"namespace", "class"}
+    scope: {ScopeDecl} -- e.g. {"namespace", "class"}
 }
 
 export type ParsedArgType = "nil" | "boolean" | "number" | "string" | "userdata"
@@ -69,7 +69,7 @@ export type ScopeDecl = {
     name: string,
 }
 
-function ParserTypes.concat_scope(scope: {ScopeDecl}): string
+function ParserTypes.scope_decl_to_string_arr(scope: {ScopeDecl}): {string}
     local scope_parts: {string} = {}
     for _, scope_part in scope do
         if scope_part.kind == ParserTypes.ScopeKind.Root then
@@ -79,20 +79,25 @@ function ParserTypes.concat_scope(scope: {ScopeDecl}): string
         table.insert(scope_parts, scope_part.name)
     end
 
-    return table.concat(scope_parts, "::")
+    return scope_parts
 end
 
-export type ParsedDeclFunc = {
+function ParserTypes.concat_scope(scope: {ScopeDecl}): string
+    return table.concat(ParserTypes.scope_decl_to_string_arr(scope), "::")
+end
+
+export type ParsedDecl = {
     kind: DeclKind,
     name: string,
     attributes: {LuauAttr}?,    -- parsed attributes from the @luau line
     ret_type: ParsedArgType?,   -- return type in luau
     ret_original_type: string?, -- return type in c++
-    args: {ParsedArg}?,
-    is_const: boolean,
-    is_static: boolean,
+    args: {ParsedArg}?,         -- arguments
+    is_const: boolean,          -- is const function
+    is_static: boolean,         -- is static function
     is_field: boolean,          -- is field of class/struct
-    scope: {ScopeDecl}?         -- e.g. {"namespace", "class"}
+    is_var: boolean?,           -- is variable (not a function)
+    scope: {ScopeDecl}          -- e.g. {"namespace", "class"}
 }
 
 export type ScopeKind = "root" | "block" | "namespace" | "class" | "struct" | "enum" | "inline" |"unknown"
