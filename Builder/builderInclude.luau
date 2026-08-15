@@ -17,25 +17,24 @@ local function get_scope_string(scope: {ParserTypes.ScopeDecl}): string
     return table.concat(scope_arr, ", ")
 end
 
-local function start(definition: string, include: string): string
+local function start(definition: string, include: string, header_path: string, header_name: string): string
     local result: string = ""
 
     result ..= "#pragma once\n\n"
     result ..= "#include \"ParserRegister.h\"\n"
+    result ..= "#include \"../include/" .. (string.match(include, "([^/]+)$") or include) .. "\"\n"
+    result ..= "#include \"" .. header_path .. "\"\n"
+    result ..= "#include \"" .. (string.match(definition, "([^/]+)$") or definition) .. "\"\n\n"
 
-    result ..= "#include \"../include/" .. (string.match(include, "([^/]+)$") or definition) .. "\"\n"
-    result ..= "#include \"../" .. (string.match(definition, "([^/]+)$") or definition) .. "\"\n\n"
-
-    result ..= "void register_luau_parsed(lua_State* L)\n"
+    result ..= "void register_" .. header_name .. "(lua_State* L)\n"
     result ..= "{\n"
 
     return result
 end
 
-function BuilderInclude.build_cpp(decls: {ParserTypes.ParsedDecl}, definition: string, include: string): string
+function BuilderInclude.build_cpp(decls: {ParserTypes.ParsedDecl}, definition: string, include: string, header_path: string, header_name: string): string
     local result = ""
-    
-    result ..= start(definition, include)
+    result ..= start(definition, include, header_path, header_name)
 
     for _, decl in decls do
         result ..= "\tregister_scoped_func(L, {" .. get_scope_string(decl.scope) .. "}, \"" .. decl.name .. "\", " .. ParserTypes.parsed_function_prefix .. decl.name .. ");\n"
@@ -46,11 +45,11 @@ function BuilderInclude.build_cpp(decls: {ParserTypes.ParsedDecl}, definition: s
     return result
 end
 
-function BuilderInclude.build_include(include: string): string
+function BuilderInclude.build_include(header_name: string): string
     local result = ""
-    
     result ..= "#pragma once\n\n"
-    result ..= "void register_luau_parsed(class lua_State* L);\n"
+    result ..= "#include \"lua.h\"\n\n"
+    result ..= "void register_" .. header_name .. "(lua_State* L);\n"
     return result
 end
 

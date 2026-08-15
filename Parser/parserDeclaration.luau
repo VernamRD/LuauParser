@@ -159,16 +159,20 @@ local function parse_declaration(decl: ParserTypes.LuauDecl): ParserTypes.Parsed
 	local is_const = false
 	local is_field = false
 
-	-- Strip a leading "static" keyword, if present.
-	if decl_str:match("^%s*static%s+") then
-		is_static = true
-		decl_str = decl_str:gsub("^%s*static%s+", "")
-	end
-
-	-- Strip a trailing "const" keyword, if present (e.g. "void Foo() const").
-	if decl_str:match("%s+const%s*$") then
-		is_const = true
-		decl_str = decl_str:gsub("%s+const%s*$", "")
+	-- Strip any leading modifier keywords (order-independent), tracking the ones we care about.
+	local modifier_pattern = "^%s*(static)%s+"
+	local inline_pattern = "^%s*(inline)%s+"
+	local stripped = true
+	while stripped do
+		stripped = false
+		if decl_str:match(modifier_pattern) then
+			is_static = true
+			decl_str = decl_str:gsub(modifier_pattern, "")
+			stripped = true
+		elseif decl_str:match(inline_pattern) then
+			decl_str = decl_str:gsub(inline_pattern, "")
+			stripped = true
+		end
 	end
 
 	-- A declaration is a "field" (as opposed to a free function) if its

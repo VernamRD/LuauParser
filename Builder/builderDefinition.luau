@@ -25,7 +25,9 @@ local function get_arg_names(args: {ParserTypes.ParsedArg}): {string}
     local arg_names: {string} = {}
     if args then
        for _, arg in args do
-            table.insert(arg_names, arg.name)
+            if not arg.is_self then
+                table.insert(arg_names, arg.name)
+            end
        end
     end
 
