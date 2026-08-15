@@ -5,11 +5,13 @@ local manifest_decls   = arg[2]
 local generated_api = arg[3]
 local generated_definition = arg[4]
 local output_include = arg[5]
+local output_cpp = arg[6]
 
 local BuilderApi = require("builderAPI")
 local Json = require("../json")
 local ParserTypes = require("../parserTypes")
-local BuilderBindings = require("./builderBindings")
+local BuilderDefinition = require("./builderDefinition")
+local BuilderInclude = require("./builderInclude")
 
 local function get_file_name(full_path: string): string
     -- Normalize path to use forward slashes
@@ -61,4 +63,6 @@ for _, decls_file in manifest_lines do
 end
 
 io.writefile(generated_api, builder_api:build())
-io.writefile(generated_definition, BuilderBindings.build(decls))
+io.writefile(generated_definition, BuilderDefinition.build(decls))
+io.writefile(output_cpp, BuilderInclude.build_cpp(decls, generated_definition, output_include))
+io.writefile(output_include, BuilderInclude.build_include(output_include))

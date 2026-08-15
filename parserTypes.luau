@@ -121,6 +121,7 @@ export type ScopeNode = {
     line_end: number?,
 }
 
+ParserTypes.parsed_function_prefix = "luau_parser_"
 
 
 return ParserTypes

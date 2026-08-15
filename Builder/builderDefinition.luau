@@ -1,8 +1,8 @@
 --!strict
 local ParserTypes = require("../parserTypes")
 
-local BuilderBindings = {}
-BuilderBindings.__index = BuilderBindings
+local BuilderDefinition = {}
+BuilderDefinition.__index = BuilderDefinition
 
 local function get_scope(scope: {ParserTypes.ScopeDecl}): string?
     local scope_local: {string} = {}
@@ -70,7 +70,7 @@ end
 local function build_function(decl: ParserTypes.ParsedDecl): string
     local result: string = ""
 
-    result ..= "int luau_" .. decl.name .. "(lua_State* L)\n{\n"
+    result ..= "int " .. ParserTypes.parsed_function_prefix .. decl.name .. "(lua_State* L)\n{\n"
     
     -- Extract arguments
     if decl.args then
@@ -109,7 +109,7 @@ local function build_function(decl: ParserTypes.ParsedDecl): string
     return result
 end
 
-function BuilderBindings.build(decls: {ParserTypes.ParsedDecl}): string
+function BuilderDefinition.build(decls: {ParserTypes.ParsedDecl}): string
     local result: string = ""
     
     for _, decl in decls do 
@@ -121,5 +121,5 @@ function BuilderBindings.build(decls: {ParserTypes.ParsedDecl}): string
     return result
 end
 
-return BuilderBindings
+return BuilderDefinition
 

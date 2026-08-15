@@ -7,7 +7,7 @@ if(NOT EXISTS "${GENERATED_DIR}")
     file(MAKE_DIRECTORY "${GENERATED_DIR}")
 endif()
 
-set(PARSER_UTILITY_FILE_NAME "Parser/ParserRegister.h")
+set(PARSER_UTILITY_FILE_NAME "ParserRegister.h")
 
 function(register_luau_parser)
     add_executable (luau_parser "${PARSER_ROOT_DIR}/Parser/LuauParser.cpp")
@@ -31,29 +31,46 @@ set(LUAU_BUILDER "${CMAKE_CURRENT_LIST_DIR}/Builder/builder.luau")
 function(build_luau_bindings TARGET_NAME)
     set(HEADER_FILES_LIST ${ARGN})
 
+    set(GENERATED_INCLUDE_DIR "${GENERATED_DIR}/include")
+    set(GENERATED_PRIVATE_DIR "${GENERATED_DIR}/private")
+    set(GENERATED_CACHE_DIR "${GENERATED_DIR}/${TARGET_NAME}")
+
+    if(NOT EXISTS "${GENERATED_INCLUDE_DIR}")
+        file(MAKE_DIRECTORY "${GENERATED_INCLUDE_DIR}")
+    endif()
+
+    if(NOT EXISTS "${GENERATED_PRIVATE_DIR}")
+        file(MAKE_DIRECTORY "${GENERATED_PRIVATE_DIR}")
+    endif()
+
+    if(NOT EXISTS "${GENERATED_CACHE_DIR}")
+        file(MAKE_DIRECTORY "${GENERATED_CACHE_DIR}")
+    endif()
+
     # Luau function declaration
     set(GENERATED_API "${GENERATED_DIR}/${TARGET_NAME}_api.d.luau")
-    # Function registration
-    set(GENERATED_REG "${GENERATED_DIR}/${TARGET_NAME}_generated.h")
     # Function realisaztion
     set(GENERATED_DEF "${GENERATED_DIR}/${TARGET_NAME}_definition.h")
 
     # Function registration
-    set(OUTPUT_INCLUDE "${PARSER_ROOT_DIR}/include/luau_parser_bindings.h")
-    
-    set(MANIFEST_PARSED_DECLS "${GENERATED_DIR}/${TARGET_NAME}/parsed_decls.manifest")
+    set(OUTPUT_INCLUDE "${GENERATED_INCLUDE_DIR}/luau_parser_bindings.h")
+
+    # Function registration
+    set(OUTPUT_CPP "${GENERATED_PRIVATE_DIR}/luau_parser_bindings.cpp")
+
+    set(MANIFEST_PARSED_DECLS "${GENERATED_CACHE_DIR}/parsed_decls.manifest")
     if(NOT EXISTS "${MANIFEST_PARSED_DECLS}")
         file(WRITE "${MANIFEST_PARSED_DECLS}")
     endif()
     set(ALL_PARSED_DECLS "")
 
-    set(PARSE_TARGET "generate_${TARGET_NAME}_${HEADER_NAME}_bindings")
+    set(PARSE_TARGET "Parse_${TARGET_NAME}")
     add_custom_target(${PARSE_TARGET})
 
     # Parse each header
     foreach (HEADER ${HEADER_FILES_LIST})
         get_filename_component(HEADER_NAME ${HEADER} NAME_WE)
-        set(OUT_PARSED_DECLS "${GENERATED_DIR}/${TARGET_NAME}/${HEADER_NAME}_ParsedDecls.json")
+        set(OUT_PARSED_DECLS "${GENERATED_CACHE_DIR}/${HEADER_NAME}_ParsedDecls.json")
 
         list(APPEND ALL_PARSED_DECLS "${OUT_PARSED_DECLS}")
 
@@ -65,7 +82,7 @@ function(build_luau_bindings TARGET_NAME)
             VERBATIM
         )
 
-        set(SINGLE_PARSE_TARGET "Generate_${TARGET_NAME}_${HEADER_NAME}_bindings")
+        set(SINGLE_PARSE_TARGET "Parse_${TARGET_NAME}_${HEADER_NAME}")
         add_custom_target(${SINGLE_PARSE_TARGET} DEPENDS "${OUT_PARSED_DECLS}")
         add_dependencies(${PARSE_TARGET} ${SINGLE_PARSE_TARGET})
     endforeach()
@@ -76,10 +93,10 @@ function(build_luau_bindings TARGET_NAME)
 
     # Copy ParserRegister.h to generated folder
     add_custom_command(
-        OUTPUT "${GENERATED_DIR}/${TARGET_NAME}/${PARSER_UTILITY_FILE_NAME}"
+        OUTPUT "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}"
         COMMAND ${CMAKE_COMMAND} -E copy
         "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
-        "${GENERATED_DIR}/${TARGET_NAME}/${PARSER_UTILITY_FILE_NAME}"
+        "${GENERATED_PRIVATE_DIR}/${PARSER_UTILITY_FILE_NAME}"
         DEPENDS "${PARSER_ROOT_DIR}/${PARSER_UTILITY_FILE_NAME}"
         COMMENT "Copying parser utility file to generated directory"
         VERBATIM
@@ -87,16 +104,16 @@ function(build_luau_bindings TARGET_NAME)
 
     # Build single file
     add_custom_command(
-        OUTPUT "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}"
-        COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_PARSED_DECLS}" "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}"
+        OUTPUT "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}" "${OUTPUT_CPP}"
+        COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_PARSED_DECLS}" "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}" "${OUTPUT_CPP}"
         DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${PARSE_TARGET}" "${MANIFEST_PARSED_DECLS}"
-        COMMENT "Build Luau bindings and API..."
+        COMMENT "Build Luau bindings ${OUTPUT_CPP} and API ${GENERATED_API}... "
         VERBATIM
     )
     set(PARSER_BUILD_TARGET "Build_${TARGET_NAME}_luau_bindings")
-    add_custom_target(${PARSER_BUILD_TARGET} DEPENDS "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}")
+    add_custom_target(${PARSER_BUILD_TARGET} DEPENDS "${GENERATED_DIR}/${PARSER_UTILITY_FILE_NAME}" "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_CPP}" "${OUTPUT_INCLUDE}")
 
     add_dependencies(${TARGET_NAME} ${PARSER_BUILD_TARGET})
-    target_include_directories(${TARGET_NAME} PRIVATE "${GENERATED_DIR}")
-    target_include_directories(${TARGET_NAME} PRIVATE "${PARSER_ROOT_DIR}/include")
+    target_include_directories(${TARGET_NAME} PRIVATE "${GENERATED_DIR}/include")
+    target_sources(${TARGET_NAME} PRIVATE "${OUTPUT_CPP}")
 endfunction()
