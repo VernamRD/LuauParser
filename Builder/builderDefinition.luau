@@ -4,6 +4,10 @@ local ParserTypes = require("../parserTypes")
 local BuilderDefinition = {}
 BuilderDefinition.__index = BuilderDefinition
 
+local function get_self_scope_table_string(arg: ParserTypes.ParsedArg): string
+    return string.gsub(arg.original_type, "::", ".")
+end
+
 local function get_scope(scope: {ParserTypes.ScopeDecl}): string?
     local scope_local: {string} = {}
     if scope then
@@ -32,6 +36,7 @@ local function arg_get(arg: ParserTypes.ParsedArg, index: number): string
     local def_str = arg.original_type
     local luau_get_str = ""
     local suffix = ""
+    local table_arg: string? = nil
 
     if arg.type == ParserTypes.ParsedArgType.Nil then
         luau_get_str = "nil"
@@ -42,12 +47,13 @@ local function arg_get(arg: ParserTypes.ParsedArg, index: number): string
     elseif arg.type == ParserTypes.ParsedArgType.String then
         luau_get_str = "luaL_checkstring"
     elseif arg.type == ParserTypes.ParsedArgType.Userdata then
-        luau_get_str = "static_cast<" .. arg.original_type .. ">(luaL_checkudata*"
+        luau_get_str = "static_cast<" .. arg.original_type .. "*>(luaL_checkudata"
+        table_arg = ", \"" .. get_self_scope_table_string(arg) .. "\""
         def_str ..= "*"
         suffix = ")"
     end
 
-    local arg_str = def_str .. " " .. arg.name .. " = " .. luau_get_str .. "(L, " .. tostring(index) .. ")" .. suffix .. ";"
+    local arg_str = def_str .. " " .. arg.name .. " = " .. luau_get_str .. "(L, " .. tostring(index) .. (if table_arg then table_arg else ("")) .. ")" .. suffix .. ";"
 
     return arg_str
 end
