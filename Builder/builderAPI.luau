@@ -1,7 +1,6 @@
 --!strict
 local json = require("../json")
 local ParserTypes = require("../parserTypes")
-local BuilderTypes = require("builderTypes")
 
 local BuilderApi = {}
 BuilderApi.__index = BuilderApi

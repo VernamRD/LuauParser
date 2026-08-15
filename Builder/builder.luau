@@ -3,12 +3,13 @@
 assert(arg[1] == "-a", "Expected -a flag")
 local manifest_decls   = arg[2]
 local generated_api = arg[3]
-local output_include = arg[4]
+local generated_definition = arg[4]
+local output_include = arg[5]
 
-local BuilderTypes = require("builderTypes")
 local BuilderApi = require("builderAPI")
 local Json = require("../json")
 local ParserTypes = require("../parserTypes")
+local BuilderBindings = require("./builderBindings")
 
 local function get_file_name(full_path: string): string
     -- Normalize path to use forward slashes
@@ -51,10 +52,13 @@ end
 
 local builder_api: BuilderApi.BuilderApi = BuilderApi.new()
 
+local decls: {ParserTypes.ParsedDecl} = {} 
 for _, decls_file in manifest_lines do
     local file_content: string = io.readfile(decls_file)
-    local decls: {ParserTypes.ParsedDecl} = Json.decode(file_content)
-    builder_api:append_decls(decls)
+    local new_decls: {ParserTypes.ParsedDecl} = Json.decode(file_content)
+    builder_api:append_decls(new_decls)
+    table.move(new_decls, 1, #new_decls, #decls + 1, decls)
 end
 
 io.writefile(generated_api, builder_api:build())
+io.writefile(generated_definition, BuilderBindings.build(decls))

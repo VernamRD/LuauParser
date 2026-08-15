@@ -31,10 +31,12 @@ set(LUAU_BUILDER "${CMAKE_CURRENT_LIST_DIR}/Builder/builder.luau")
 function(build_luau_bindings TARGET_NAME)
     set(HEADER_FILES_LIST ${ARGN})
 
-    # Function registration
-    set(GENERATED_REG "${GENERATED_DIR}/${TARGET_NAME}_generated.h")
     # Luau function declaration
     set(GENERATED_API "${GENERATED_DIR}/${TARGET_NAME}_api.d.luau")
+    # Function registration
+    set(GENERATED_REG "${GENERATED_DIR}/${TARGET_NAME}_generated.h")
+    # Function realisaztion
+    set(GENERATED_DEF "${GENERATED_DIR}/${TARGET_NAME}_definition.h")
 
     # Function registration
     set(OUTPUT_INCLUDE "${PARSER_ROOT_DIR}/include/luau_parser_bindings.h")
@@ -85,14 +87,14 @@ function(build_luau_bindings TARGET_NAME)
 
     # Build single file
     add_custom_command(
-        OUTPUT "${GENERATED_API}" "${OUTPUT_INCLUDE}"
-        COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_PARSED_DECLS}" "${GENERATED_API}" "${OUTPUT_INCLUDE}"
+        OUTPUT "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}"
+        COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -a "${MANIFEST_PARSED_DECLS}" "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}"
         DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${PARSE_TARGET}" "${MANIFEST_PARSED_DECLS}"
         COMMENT "Build Luau bindings and API..."
         VERBATIM
     )
     set(PARSER_BUILD_TARGET "Build_${TARGET_NAME}_luau_bindings")
-    add_custom_target(${PARSER_BUILD_TARGET} DEPENDS "${GENERATED_API}" "${OUTPUT_INCLUDE}")
+    add_custom_target(${PARSER_BUILD_TARGET} DEPENDS "${GENERATED_API}" "${GENERATED_DEF}" "${OUTPUT_INCLUDE}")
 
     add_dependencies(${TARGET_NAME} ${PARSER_BUILD_TARGET})
     target_include_directories(${TARGET_NAME} PRIVATE "${GENERATED_DIR}")
