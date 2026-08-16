@@ -20,7 +20,6 @@ end
 local function start(definition: string, include: string, header_path: string, header_name: string): string
     local result: string = ""
 
-    result ..= "#pragma once\n\n"
     result ..= "#include \"ParserRegister.h\"\n"
     result ..= "#include \"../include/" .. (string.match(include, "([^/]+)$") or include) .. "\"\n"
     result ..= "#include \"" .. header_path .. "\"\n"
