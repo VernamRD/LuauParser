@@ -118,7 +118,7 @@ end
 --                          stopping character was found — the caller
 --                          should let normal scope-tracking process it.
 local function collect_declaration(file_lines: { string }, start_line: number): (string, number, boolean)
-	local header, stop_line, stop_col: number, stop_char: string? = scan_header(file_lines, start_line)
+	local header, stop_line, stop_col, stop_char = scan_header(file_lines, start_line)
 
 	if stop_char == "{" and is_enum_header(header) then
 		local end_line, end_col = scan_balanced_braces(file_lines, stop_line, stop_col)
@@ -137,7 +137,11 @@ local function collect_declaration(file_lines: { string }, start_line: number): 
 			end
 		end
 
-		return header .. " " .. table.concat(body_parts, " "), end_line, true
+		-- Join with real newlines, not spaces — downstream comment
+		-- stripping (ParserEnum) needs actual line boundaries to know
+		-- where a "//" comment ends, otherwise it eats the rest of the
+		-- flattened body.
+		return header .. " " .. table.concat(body_parts, "\n"), end_line, true
 	end
 
 	return header, stop_line, false
