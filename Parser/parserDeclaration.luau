@@ -159,19 +159,29 @@ local function parse_declaration(decl: ParserTypes.LuauDecl): ParserTypes.Parsed
 	local is_const = false
 	local is_field = false
 
-	-- Strip any leading modifier keywords (order-independent), tracking the ones we care about.
-	local modifier_pattern = "^%s*(static)%s+"
-	local inline_pattern = "^%s*(inline)%s+"
+	-- Leading modifier keywords to strip from the declaration, in any order,
+	-- repeated until none match. Add new keywords here as they come up
+	-- (e.g. constexpr, virtual, explicit) — no other code needs to change.
+	local leading_modifier_keywords: { string } = {
+		"static",
+		"inline",
+		"constexpr",
+		"virtual",
+		"explicit",
+	}
+
 	local stripped = true
 	while stripped do
 		stripped = false
-		if decl_str:match(modifier_pattern) then
-			is_static = true
-			decl_str = decl_str:gsub(modifier_pattern, "")
-			stripped = true
-		elseif decl_str:match(inline_pattern) then
-			decl_str = decl_str:gsub(inline_pattern, "")
-			stripped = true
+		for _, keyword in leading_modifier_keywords do
+			local pattern = "^%s*" .. keyword .. "%s+"
+			if decl_str:match(pattern) then
+				if keyword == "static" then
+					is_static = true
+				end
+				decl_str = decl_str:gsub(pattern, "")
+				stripped = true
+			end
 		end
 	end
 
