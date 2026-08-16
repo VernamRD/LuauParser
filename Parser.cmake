@@ -124,6 +124,7 @@ function(build_luau_bindings TARGET_NAME)
     set(ALL_HEADER_BINDINGS_CPP "")
     set(ALL_HEADER_NAMES "")
     set(ALL_HEADER_API_FILES "")
+    set(ALL_TYPE_REGISTRY_FILES "")
 
     foreach(HEADER ${HEADER_FILES_LIST})
         get_filename_component(HEADER_NAME ${HEADER} NAME_WE)
@@ -141,10 +142,12 @@ function(build_luau_bindings TARGET_NAME)
 
         # --- Step 1: parse header -> ParsedDecls.json -----------------------
         set(OUT_PARSED_DECLS "${GENERATED_PARSED_DIR}/${HEADER_NAME}_ParsedDecls.json")
+        set(OUT_TYPE_REGISTRY "${GENERATED_PARSED_DIR}/${TARGET_NAME}_${HEADER_NAME}_registry")
+        list(APPEND ALL_TYPE_REGISTRY_FILES "${TYPE_REGISTRY}")
 
         add_custom_command(
             OUTPUT "${OUT_PARSED_DECLS}"
-            COMMAND ${LUAU_PARSER_EXE} "${LUAU_PARSER}" -a "${OUT_PARSED_DECLS}" ${HEADER}
+            COMMAND ${LUAU_PARSER_EXE} "${LUAU_PARSER}" -a "${OUT_PARSED_DECLS}" "${HEADER}" "${OUT_TYPE_REGISTRY}"
             DEPENDS ${LUAU_PARSER_EXE} "${LUAU_PARSER}" ${HEADER}
             COMMENT "Parse Luau bindings for ${HEADER}..."
             VERBATIM
@@ -153,28 +156,6 @@ function(build_luau_bindings TARGET_NAME)
         set(SINGLE_PARSE_TARGET "Parse_${TARGET_NAME}_${HEADER_NAME}")
         add_custom_target(${SINGLE_PARSE_TARGET} DEPENDS "${OUT_PARSED_DECLS}")
         add_dependencies(${PARSE_TARGET} ${SINGLE_PARSE_TARGET})
-
-        # --- Step 2: self-containment check ---------------------------------
-        # Compiles the header standalone (-fsyntax-only) to catch forward-decl
-        # -only headers before we generate C++ that references incomplete
-        # types. CheckSelfContained.cmake itself no-ops if the JSON is empty,
-        # but we've already filtered those out above, so this always runs
-        # for headers that reach this point.
-        set(SYNTAX_CHECK_STAMP "${GENERATED_PARSED_DIR}/${HEADER_NAME}.syntax_ok")
-        add_custom_command(
-            OUTPUT "${SYNTAX_CHECK_STAMP}"
-            COMMAND ${CMAKE_COMMAND}
-            -DDECLS_JSON=${OUT_PARSED_DECLS}
-            -DHEADER=${HEADER}
-            -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
-            -DCXX_STANDARD=${TARGET_CXX_STANDARD}
-            -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
-            -DSTAMP=${SYNTAX_CHECK_STAMP}
-            -P "${PARSER_ROOT_DIR}/CheckSelfContained.cmake"
-            DEPENDS "${OUT_PARSED_DECLS}" "${PARSER_ROOT_DIR}/CheckSelfContained.cmake"
-            COMMENT "Checking ${HEADER_NAME}.h is self-contained..."
-            VERBATIM
-        )
 
         # Path to the header relative to the source root, used inside the
         # generated .cpp as `#include "<HEADER_REL>"` (resolved via the

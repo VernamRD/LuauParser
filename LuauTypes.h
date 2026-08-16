@@ -86,62 +86,134 @@ static const luaL_Reg io_lib[] = {
 #pragma endregion io
 
 #pragma region require
-static int lua_require(lua_State* L)
+static int lua_require(lua_State *L)
 {
-    const char* modname = luaL_checkstring(L, 1);
+    const char *modname = luaL_checkstring(L, 1);
 
-    // Check cache: package.loaded[modname]
+    // package.loaded[modname]
     lua_getglobal(L, "package");
     lua_getfield(L, -1, "loaded");
     lua_getfield(L, -1, modname);
+
     if (!lua_isnil(L, -1))
     {
-        // Alredy loaded, return cached value
+        // Already loaded.
+        // Stack: package, loaded, module
+        lua_remove(L, -3); // remove package
+        lua_remove(L, -2); // remove loaded
+
         return 1;
     }
 
-    // Remove nil, loaded, package
+    // Remove nil, loaded, package.
     lua_pop(L, 3);
 
+    // ------------------------------------------------------------
+    // Resolve module path
+    // ------------------------------------------------------------
+
     std::string modpath = modname;
-    for (char& c : modpath)
+
+    const bool is_relative = modpath.starts_with("./") || modpath.starts_with("../");
+
+    if (!is_relative)
     {
-        if (c == '.') c = '/';
+        // Lua module syntax:
+        //
+        // Foo.Bar
+        //
+        // ->
+        //
+        // Foo/Bar
+        for (char &c : modpath)
+        {
+            if (c == '.')
+                c = '/';
+        }
     }
+
     modpath += ".luau";
 
-    fs::path fullpath = g_script_dir / modpath;
+    // Resolve relative to the currently executing module.
+    fs::path fullpath = (g_script_dir / modpath).lexically_normal();
+
+    // ------------------------------------------------------------
+    // Read source
+    // ------------------------------------------------------------
+
     std::string source = read_file(fullpath.string().c_str());
 
     if (source.empty())
     {
-        fullpath = g_script_dir / (std::string(modname) + ".luau");
-        source = read_file(fullpath.string().c_str());
-    }
-
-    if (source.empty())
-    {
         luaL_error(L, "Module '%s', not found (tried: %s)", modname, fullpath.string().c_str());
+
         return 0;
     }
+
+    // ------------------------------------------------------------
+    // Compile
+    // ------------------------------------------------------------
 
     size_t bytecode_size = 0;
-    char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecode_size);
+
+    char *bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecode_size);
+
+    if (!bytecode)
+    {
+        luaL_error(L, "Failed to compile module '%s'", modname);
+
+        return 0;
+    }
+
+    // ------------------------------------------------------------
+    // Load
+    // ------------------------------------------------------------
 
     std::string chunkname = "@" + fullpath.string();
+
     if (luau_load(L, chunkname.c_str(), bytecode, bytecode_size, 0) != LUA_OK)
     {
+        std::string error = lua_tostring(L, -1) ? lua_tostring(L, -1) : "unknown error";
+
         free(bytecode);
-        luaL_error(L, "Error loading module '%s' : %s", modname, lua_tostring(L, -1));
+
+        luaL_error(L, "Error loading module '%s': %s", modname, error.c_str());
+
         return 0;
     }
+
     free(bytecode);
 
-    if (lua_pcall(L, 0, 1, 0) != LUA_OK)
+    // ------------------------------------------------------------
+    // Execute module
+    //
+    // require() inside this module must resolve relative to
+    // this module's directory.
+    // ------------------------------------------------------------
+
+    fs::path previous_script_dir = g_script_dir;
+
+    g_script_dir = fullpath.parent_path();
+
+    const int result = lua_pcall(L, 0, 1, 0);
+
+    // ALWAYS restore the parent directory.
+    g_script_dir = previous_script_dir;
+
+    if (result != LUA_OK)
     {
-        luaL_error(L, "Error running module '%s' : %s", modname, lua_tostring(L, -1));
+        const char *error = lua_tostring(L, -1);
+
+        luaL_error(L, "Error running module '%s': %s", modname, error ? error : "unknown error");
+
         return 0;
     }
+
+    // ------------------------------------------------------------
+    // Lua require semantics:
+    //
+    // module returning nil -> true
+    // ------------------------------------------------------------
 
     if (lua_isnil(L, -1))
     {
@@ -149,12 +221,31 @@ static int lua_require(lua_State* L)
         lua_pushboolean(L, 1);
     }
 
+    // ------------------------------------------------------------
+    // package.loaded[modname] = result
+    // ------------------------------------------------------------
+
     lua_getglobal(L, "package");
     lua_getfield(L, -1, "loaded");
+
+    // Stack:
+    //
+    // result
+    // package
+    // loaded
+    //
+    // Copy result.
     lua_pushvalue(L, -3);
+
     lua_setfield(L, -2, modname);
+
+    // Remove package and loaded.
     lua_pop(L, 2);
 
+    // Stack now contains:
+    //
+    // result
+    //
     return 1;
 }
 

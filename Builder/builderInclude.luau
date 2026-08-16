@@ -8,7 +8,7 @@ local function get_scope_string(scope: {ParserTypes.ScopeDecl}): string
     local scope_arr: {string} = {}
 
     for _, scope_part in scope do
-        if scope_part.kind ~= ParserTypes.ScopeKind.Root then
+        if scope_part.kind ~= ParserTypes.ScopeKind.Unknown then
             local scope_str = "\"" .. scope_part.name .. "\""
             table.insert(scope_arr, scope_str)
         end

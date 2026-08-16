@@ -12,7 +12,7 @@ local function get_scope(scope: {ParserTypes.ScopeDecl}): string?
     local scope_local: {string} = {}
     if scope then
        for _, scope_part in scope do
-            if scope_part.kind ~= ParserTypes.ScopeKind.Root and scope_part.kind ~= ParserTypes.ScopeKind.Unknown then
+            if scope_part.kind ~= ParserTypes.ScopeKind.Unknown then
                 table.insert(scope_local, scope_part.name)
             end
        end
