@@ -143,7 +143,7 @@ function(build_luau_bindings TARGET_NAME)
         # --- Step 1: parse header -> ParsedDecls.json -----------------------
         set(OUT_PARSED_DECLS "${GENERATED_PARSED_DIR}/${HEADER_NAME}_ParsedDecls.json")
         set(OUT_TYPE_REGISTRY "${GENERATED_PARSED_DIR}/${TARGET_NAME}_${HEADER_NAME}_registry")
-        list(APPEND ALL_TYPE_REGISTRY_FILES "${TYPE_REGISTRY}")
+        list(APPEND ALL_TYPE_REGISTRY_FILES "${OUT_TYPE_REGISTRY}")
 
         add_custom_command(
             OUTPUT "${OUT_PARSED_DECLS}"
@@ -186,6 +186,10 @@ function(build_luau_bindings TARGET_NAME)
         add_custom_target(${SINGLE_BUILD_TARGET} DEPENDS "${HEADER_API}" "${HEADER_DEF}" "${HEADER_BINDINGS_H}" "${HEADER_BINDINGS_CPP}")
         add_dependencies(${BUILD_TARGET} ${SINGLE_BUILD_TARGET})
     endforeach()
+
+    # ---- Type resgistry -------
+    set(OUTPUT_TYPE_REGISTRY_MANIFEST "${GENERATED_PARSED_DIR}/${TARGET_NAME}_registry.manifest")
+    file(GENERATE OUTPUT "${OUTPUT_TYPE_REGISTRY_MANIFEST}" CONTENT "${ALL_TYPE_REGISTRY_FILES}")
 
     # --- Aggregator ----------------------------------------------------------
     # A single stable header exposing register_internal(lua_State*), which
