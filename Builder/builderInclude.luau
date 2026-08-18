@@ -36,6 +36,10 @@ function BuilderInclude.build_cpp(decls: {ParserTypes.ParsedDecl}, definition: s
     result ..= start(definition, include, header_path, header_name)
 
     for _, decl in decls do
+        if decl.kind ~= ParserTypes.DeclKind.Function then
+            continue
+        end
+        
         result ..= "\tregister_scoped_func(L, {" .. get_scope_string(decl.scope) .. "}, \"" .. decl.name .. "\", " .. ParserTypes.parsed_function_prefix .. decl.name .. ");\n"
     end
 

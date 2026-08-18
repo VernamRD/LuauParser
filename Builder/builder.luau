@@ -2,11 +2,12 @@
 
 assert(arg[1] == "-s", "Expected -s flag")
 local decls_json    = arg[2]
-local header_path   = arg[3]
-local generated_api = arg[4]
-local generated_definition = arg[5]
-local output_include = arg[6]
-local output_cpp = arg[7]
+local type_registry_manifest = arg[3]
+local header_path   = arg[4]
+local generated_api = arg[5]
+local generated_definition = arg[6]
+local output_include = arg[7]
+local output_cpp = arg[8]
 
 local BuilderApi = require("builderAPI")
 local Json = require("../json")
@@ -29,6 +30,6 @@ local decls: {ParserTypes.ParsedDecl} = Json.decode(file_content)
 builder_api:append_decls(decls)
 
 io.writefile(generated_api, builder_api:build())
-io.writefile(generated_definition, BuilderDefinition.build(decls))
+io.writefile(generated_definition, BuilderDefinition.build(decls, type_registry_manifest))
 io.writefile(output_cpp, BuilderInclude.build_cpp(decls, generated_definition, output_include, header_path, header_name))
 io.writefile(output_include, BuilderInclude.build_include(header_name))

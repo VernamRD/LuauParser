@@ -14,12 +14,19 @@ local ParserFunction = {}
 local ParserTypes = require("../../parserTypes")
 
 --[[
-	Resolves a raw C++ type string (e.g. "const FString&") to our internal
-	ParsedArgType enum, falling back to `Nil` for anything unrecognized.
+	Resolves a raw C++ type string to our internal ParsedArgType, based
+	only on the local ArgTypeMapping table (primitives). Anything not in
+	that table is a named type (enum, class, struct, typedef, ...) whose
+	actual Luau representation (number for enums, userdata for classes,
+	etc.) can't be determined without knowing about every exported type
+	across the whole target — so it's left as Unresolved, and it's the
+	builder's job to resolve it later using the merged TypeRegistry.
 ]]
 local function parse_type(str: string): ParserTypes.ParsedArgType
 	local trimmed = str:match("^%s*(.-)%s*$") or ""
-	return ParserTypes.ArgTypeMapping[trimmed] or ParserTypes.ParsedArgType.Nil
+	local bare = trimmed:gsub("^const%s+", ""):gsub("[%s%*&]+$", "")
+
+	return ParserTypes.ArgTypeMapping[bare] or ParserTypes.ParsedArgType.Unresolved
 end
 
 --[[

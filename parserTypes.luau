@@ -11,13 +11,14 @@ export type LuauDecl = {
     scope: {ScopeDecl} -- e.g. {"namespace", "class"}
 }
 
-export type ParsedArgType = "nil" | "boolean" | "number" | "string" | "userdata"
+export type ParsedArgType = "nil" | "boolean" | "number" | "string" | "userdata" | "unresolved"
 ParserTypes.ParsedArgType = table.freeze({
     Nil = "nil" :: ParsedArgType,
     Boolean = "boolean" :: ParsedArgType,
     Number = "number" :: ParsedArgType,
     String = "string" :: ParsedArgType,
-    Userdata = "userdata" :: ParsedArgType
+    Userdata = "userdata" :: ParsedArgType,
+    Unresolved = "unresolved" :: ParsedArgType,  -- named type (enum/class/etc.); resolved later by the builder via TypeRegistry
 })
 
 ParserTypes.ArgTypeMapping = table.freeze({

@@ -1,22 +1,32 @@
 # =============================================================================
 # LuauParser build integration
 #
-# Pipeline per header (only for headers containing at least one @luau marker):
+# Pipeline (only for headers containing at least one @luau marker):
 #
-# 1. Parse    -> luau_parser reads the header, emits <Header>_ParsedDecls.json
-# 2. Check    -> if the JSON isn't empty, verify the header compiles standalone
-# (-fsyntax-only), catching forward-declaration-only headers
-# before we generate C++ that can't see complete types.
-# 3. Build    -> luau_builder turns the JSON into:
+# Pass 1 — Parse: every header is parsed independently and in parallel,
+# producing <Header>_ParsedDecls.json and a per-header type registry
+# fragment.
+#
+# Merge — all per-header registry fragments are combined into one
+# manifest. This step depends on EVERY header's parse output, so it
+# can't start until parsing has fully finished for the whole target.
+#
+# Pass 2 — Build: luau_builder turns each header's ParsedDecls.json PLUS
+# the fully-merged registry manifest into:
 # - <Header>_api.d.luau      (Luau type declarations)
 # - <Header>_definition.h    (C wrapper function bodies)
-# - <Target>_<Header>_bindings.h/.cpp
-# (register_<Header>(lua_State*))
+# - <Target>_<Header>_bindings.h/.cpp (register_<Header>(lua_State*))
 #
-# All per-header .cpp files are added to the target's sources, so each header
-# gets its own translation unit (parallel builds, minimal rebuild fan-out).
-# A small aggregator header (luau_parser_bindings.h) exposes a single
-# register_internal(lua_State*) that calls every per-header register_* fn.
+# Each build step depends on the MERGED manifest (not just its own
+# header's registry fragment), guaranteeing every header's exported
+# types are resolvable regardless of which header they were declared
+# in or which order headers happen to build in.
+#
+# All per-header .cpp files are added to the target's sources, so each
+# header gets its own translation unit (parallel builds, minimal rebuild
+# fan-out). A small aggregator header (luau_parser_bindings.h) exposes a
+# single register_internal(lua_State*) that calls every per-header
+# register_* fn.
 # =============================================================================
 
 set(LUAU_PARSER_EXE $<TARGET_FILE:luau_parser>)
@@ -29,17 +39,8 @@ if(NOT EXISTS "${GENERATED_DIR}")
     file(MAKE_DIRECTORY "${GENERATED_DIR}")
 endif()
 
-# Small runtime helper (register_scoped_func, etc.) needed by every
-# generated *_bindings.cpp. Copied into the generated tree once per target.
 set(PARSER_UTILITY_FILE_NAME "ParserRegister.h")
 
-# -----------------------------------------------------------------------------
-# register_luau_parser()
-#
-# Declares the two helper executables used by the pipeline:
-# - luau_parser  : header -> ParsedDecls.json
-# - luau_builder : ParsedDecls.json -> generated bindings
-# -----------------------------------------------------------------------------
 function(register_luau_parser)
     add_executable(luau_parser "${PARSER_ROOT_DIR}/Parser/LuauParser.cpp")
     target_link_libraries(luau_parser PRIVATE Luau.VM Luau.Compiler Luau.Ast)
@@ -59,34 +60,17 @@ endfunction()
 set(LUAU_PARSER "${CMAKE_CURRENT_LIST_DIR}/Parser/parser.luau")
 set(LUAU_BUILDER "${CMAKE_CURRENT_LIST_DIR}/Builder/builder.luau")
 
-# -----------------------------------------------------------------------------
-# build_luau_bindings(TARGET_NAME header1.h [header2.h ...])
-#
-# Generates and attaches Luau bindings for every header in the list that
-# contains at least one @luau marker. Headers without any @luau markers are
-# skipped entirely (no parse, no compile) to keep the build clean and fast.
-# -----------------------------------------------------------------------------
 function(build_luau_bindings TARGET_NAME)
     set(HEADER_FILES_LIST ${ARGN})
 
-    # Re-run CMake configure whenever any candidate header changes, so that
-    # adding/removing @luau markers is picked up without a manual reconfigure.
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${HEADER_FILES_LIST})
 
-    # Self-containment checks should use the same C++ standard as the target
-    # they're generating bindings for, to avoid false positives/negatives
-    # from language features gated behind -std=.
     get_target_property(TARGET_CXX_STANDARD ${TARGET_NAME} CXX_STANDARD)
 
     if(NOT TARGET_CXX_STANDARD)
-        set(TARGET_CXX_STANDARD 23) # fallback if the target doesn't set CXX_STANDARD explicitly
+        set(TARGET_CXX_STANDARD 23)
     endif()
 
-    # --- Generated directory layout -----------------------------------------
-    # generated/include/  -> public bindings headers (target include path)
-    # generated/private/  -> .cpp sources + internal definition headers
-    # generated/<Target>/ -> per-target intermediate cache (parsed JSON, stamps)
-    # generated/api/      -> generated .d.luau type declarations
     set(GENERATED_CACHE_DIR "${GENERATED_DIR}/${TARGET_NAME}")
     set(GENERATED_PARSED_DIR "${GENERATED_DIR}/${TARGET_NAME}/parsed")
     set(GENERATED_INCLUDE_DIR "${GENERATED_CACHE_DIR}/include")
@@ -99,8 +83,6 @@ function(build_luau_bindings TARGET_NAME)
         endif()
     endforeach()
 
-    # Copy ParserRegister.h into the generated tree once per target, so every
-    # generated *_bindings.cpp can #include "ParserRegister.h" locally.
     add_custom_command(
         OUTPUT "${GENERATED_PRIVATE_DIR}/${PARSER_UTILITY_FILE_NAME}"
         COMMAND ${CMAKE_COMMAND} -E copy
@@ -111,42 +93,42 @@ function(build_luau_bindings TARGET_NAME)
         VERBATIM
     )
 
-    # Umbrella targets: depending on these builds/parses every header for
-    # this target in one go (mainly useful for IDE targets / manual invocation).
     set(PARSE_TARGET "Parse_${TARGET_NAME}")
     add_custom_target(${PARSE_TARGET})
 
     set(BUILD_TARGET "Build_${TARGET_NAME}_luau_bindings")
     add_custom_target(${BUILD_TARGET})
 
-    # Accumulated across the loop below, used to build the aggregator and
-    # the target's source list once all headers have been processed.
-    set(ALL_HEADER_BINDINGS_CPP "")
-    set(ALL_HEADER_NAMES "")
-    set(ALL_HEADER_API_FILES "")
+    # Populated in Pass 1, consumed by the merge step and Pass 2.
+    set(VALID_HEADER_NAMES "")
+    set(VALID_HEADERS "")
+    set(ALL_PARSED_DECLS_FILES "")
     set(ALL_TYPE_REGISTRY_FILES "")
 
+    # =========================================================================
+    # Pass 1 — parse every header independently. No header's parse step
+    # depends on any other header, so these all run in parallel.
+    # =========================================================================
     foreach(HEADER ${HEADER_FILES_LIST})
         get_filename_component(HEADER_NAME ${HEADER} NAME_WE)
 
-        # --- Skip headers with nothing to bind ------------------------------
-        # A header with no @luau markers has no exported declarations, so
-        # there's no point parsing/compiling/checking it at all.
         file(STRINGS "${HEADER}" LUAU_MARKERS REGEX "@luau")
 
         if(NOT LUAU_MARKERS)
             continue()
         endif()
 
-        list(APPEND ALL_HEADER_NAMES "${HEADER_NAME}")
+        list(APPEND VALID_HEADER_NAMES "${HEADER_NAME}")
+        list(APPEND VALID_HEADERS "${HEADER}")
 
-        # --- Step 1: parse header -> ParsedDecls.json -----------------------
         set(OUT_PARSED_DECLS "${GENERATED_PARSED_DIR}/${HEADER_NAME}_ParsedDecls.json")
-        set(OUT_TYPE_REGISTRY "${GENERATED_PARSED_DIR}/${TARGET_NAME}_${HEADER_NAME}_registry")
+        set(OUT_TYPE_REGISTRY "${GENERATED_PARSED_DIR}/${TARGET_NAME}_${HEADER_NAME}_registry.json")
+
+        list(APPEND ALL_PARSED_DECLS_FILES "${OUT_PARSED_DECLS}")
         list(APPEND ALL_TYPE_REGISTRY_FILES "${OUT_TYPE_REGISTRY}")
 
         add_custom_command(
-            OUTPUT "${OUT_PARSED_DECLS}"
+            OUTPUT "${OUT_PARSED_DECLS}" "${OUT_TYPE_REGISTRY}"
             COMMAND ${LUAU_PARSER_EXE} "${LUAU_PARSER}" -a "${OUT_PARSED_DECLS}" "${HEADER}" "${OUT_TYPE_REGISTRY}"
             DEPENDS ${LUAU_PARSER_EXE} "${LUAU_PARSER}" ${HEADER}
             COMMENT "Parse Luau bindings for ${HEADER}..."
@@ -154,29 +136,64 @@ function(build_luau_bindings TARGET_NAME)
         )
 
         set(SINGLE_PARSE_TARGET "Parse_${TARGET_NAME}_${HEADER_NAME}")
-        add_custom_target(${SINGLE_PARSE_TARGET} DEPENDS "${OUT_PARSED_DECLS}")
+        add_custom_target(${SINGLE_PARSE_TARGET} DEPENDS "${OUT_PARSED_DECLS}" "${OUT_TYPE_REGISTRY}")
         add_dependencies(${PARSE_TARGET} ${SINGLE_PARSE_TARGET})
+    endforeach()
 
-        # Path to the header relative to the source root, used inside the
-        # generated .cpp as `#include "<HEADER_REL>"` (resolved via the
-        # CMAKE_SOURCE_DIR include path added to the target below).
+    # =========================================================================
+    # Merge — combine every header's registry fragment into one manifest.
+    # This is a REAL build-time step (add_custom_command, not
+    # file(GENERATE), which runs at configure time and can't depend on
+    # outputs that don't exist yet). Depending on ALL_TYPE_REGISTRY_FILES
+    # here is what forces every header to finish parsing before any
+    # header's build step can start.
+    # =========================================================================
+    set(TYPE_REGISTRY_MANIFEST "${GENERATED_PARSED_DIR}/${TARGET_NAME}_registry.manifest")
+
+    add_custom_command(
+        OUTPUT "${TYPE_REGISTRY_MANIFEST}"
+        COMMAND ${CMAKE_COMMAND}
+        -DFILES=${ALL_TYPE_REGISTRY_FILES}
+        -DOUTPUT=${TYPE_REGISTRY_MANIFEST}
+        -P "${PARSER_ROOT_DIR}/WriteManifest.cmake"
+        DEPENDS ${ALL_TYPE_REGISTRY_FILES} "${PARSER_ROOT_DIR}/WriteManifest.cmake"
+        COMMENT "Merging type registry for ${TARGET_NAME}..."
+        VERBATIM
+    )
+
+    set(MERGE_TARGET "Merge_${TARGET_NAME}_type_registry")
+    add_custom_target(${MERGE_TARGET} DEPENDS "${TYPE_REGISTRY_MANIFEST}")
+    add_dependencies(${MERGE_TARGET} ${PARSE_TARGET})
+
+    # =========================================================================
+    # Pass 2 — build bindings for every header. Each one depends on the
+    # MERGED manifest (which transitively depends on every header's parse
+    # step), so no build step can see a partial/empty type registry.
+    # =========================================================================
+    set(ALL_HEADER_BINDINGS_CPP "")
+
+    list(LENGTH VALID_HEADER_NAMES VALID_COUNT)
+    math(EXPR LAST_INDEX "${VALID_COUNT} - 1")
+
+    foreach(INDEX RANGE ${LAST_INDEX})
+        list(GET VALID_HEADER_NAMES ${INDEX} HEADER_NAME)
+        list(GET VALID_HEADERS ${INDEX} HEADER)
+        list(GET ALL_PARSED_DECLS_FILES ${INDEX} OUT_PARSED_DECLS)
+
         file(RELATIVE_PATH HEADER_REL "${CMAKE_SOURCE_DIR}" "${HEADER}")
 
-        # --- Step 3: build bindings for this header -------------------------
         set(HEADER_API "${GENERATED_API_DIR}/${TARGET_NAME}_${HEADER_NAME}_api.d.luau")
         set(HEADER_DEF "${GENERATED_PRIVATE_DIR}/${TARGET_NAME}_${HEADER_NAME}_definition.h")
         set(HEADER_BINDINGS_H "${GENERATED_INCLUDE_DIR}/${TARGET_NAME}_${HEADER_NAME}_bindings.h")
         set(HEADER_BINDINGS_CPP "${GENERATED_PRIVATE_DIR}/${TARGET_NAME}_${HEADER_NAME}_bindings.cpp")
 
         list(APPEND ALL_HEADER_BINDINGS_CPP "${HEADER_BINDINGS_CPP}")
-        list(APPEND ALL_HEADER_API_FILES "${HEADER_API}")
 
         add_custom_command(
             OUTPUT "${HEADER_API}" "${HEADER_DEF}" "${HEADER_BINDINGS_H}" "${HEADER_BINDINGS_CPP}"
-            COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -s "${OUT_PARSED_DECLS}" "${HEADER_REL}"
+            COMMAND ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" -s "${OUT_PARSED_DECLS}" "${TYPE_REGISTRY_MANIFEST}" "${HEADER_REL}"
             "${HEADER_API}" "${HEADER_DEF}" "${HEADER_BINDINGS_H}" "${HEADER_BINDINGS_CPP}"
-            DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${SINGLE_PARSE_TARGET}" "${OUT_PARSED_DECLS}"
-            "${SYNTAX_CHECK_STAMP}"
+            DEPENDS ${LUAU_BUILDER_EXE} "${LUAU_BUILDER}" "${OUT_PARSED_DECLS}" "${TYPE_REGISTRY_MANIFEST}"
             "${GENERATED_PRIVATE_DIR}/${PARSER_UTILITY_FILE_NAME}"
             COMMENT "Build Luau bindings for ${HEADER_NAME}..."
             VERBATIM
@@ -184,29 +201,21 @@ function(build_luau_bindings TARGET_NAME)
 
         set(SINGLE_BUILD_TARGET "Build_${TARGET_NAME}_${HEADER_NAME}_bindings")
         add_custom_target(${SINGLE_BUILD_TARGET} DEPENDS "${HEADER_API}" "${HEADER_DEF}" "${HEADER_BINDINGS_H}" "${HEADER_BINDINGS_CPP}")
+        add_dependencies(${SINGLE_BUILD_TARGET} ${MERGE_TARGET})
         add_dependencies(${BUILD_TARGET} ${SINGLE_BUILD_TARGET})
     endforeach()
 
-    # ---- Type resgistry -------
-    set(OUTPUT_TYPE_REGISTRY_MANIFEST "${GENERATED_PARSED_DIR}/${TARGET_NAME}_registry.manifest")
-    file(GENERATE OUTPUT "${OUTPUT_TYPE_REGISTRY_MANIFEST}" CONTENT "${ALL_TYPE_REGISTRY_FILES}")
-
     # --- Aggregator ----------------------------------------------------------
-    # A single stable header exposing register_internal(lua_State*), which
-    # calls register_<HeaderName>() for every processed header. Generated
-    # directly by CMake (not by luau_builder) since the header-name list is
-    # already known at configure time — no need to round-trip through the
-    # builder tool for this.
     set(OUTPUT_INCLUDE "${GENERATED_INCLUDE_DIR}/luau_parser_bindings.h")
     set(AGGREGATOR_CONTENT "#pragma once\n\n#include \"lua.h\"\n\n")
 
-    foreach(HEADER_NAME ${ALL_HEADER_NAMES})
+    foreach(HEADER_NAME ${VALID_HEADER_NAMES})
         string(APPEND AGGREGATOR_CONTENT "void register_${HEADER_NAME}(lua_State* L);\n")
     endforeach()
 
     string(APPEND AGGREGATOR_CONTENT "\ninline void register_internal(lua_State* L)\n{\n")
 
-    foreach(HEADER_NAME ${ALL_HEADER_NAMES})
+    foreach(HEADER_NAME ${VALID_HEADER_NAMES})
         string(APPEND AGGREGATOR_CONTENT "    register_${HEADER_NAME}(L);\n")
     endforeach()
 
@@ -214,11 +223,9 @@ function(build_luau_bindings TARGET_NAME)
 
     file(GENERATE OUTPUT "${OUTPUT_INCLUDE}" CONTENT "${AGGREGATOR_CONTENT}")
 
-    add_custom_target(${BUILD_TARGET}_aggregator DEPENDS "${BUILD_TARGET}")
-
     # --- Wire everything into the target --------------------------------------
     add_dependencies(${TARGET_NAME} ${BUILD_TARGET})
     target_include_directories(${TARGET_NAME} PRIVATE "${GENERATED_INCLUDE_DIR}")
-    target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_SOURCE_DIR}") # for HEADER_REL includes
+    target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
     target_sources(${TARGET_NAME} PRIVATE ${ALL_HEADER_BINDINGS_CPP})
 endfunction()
